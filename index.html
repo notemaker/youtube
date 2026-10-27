@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#102522" />
+    <meta name="description" content="以 Google 試算表管理影音收藏的響應式工作台" />
+    <title>影音收集庫｜把想看的留在看得見的地方</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700&family=Noto+Serif+TC:wght@500;600;700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/styles.css?v=20261027-1410" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar" aria-label="主要導覽">
+        <div class="brand-lockup">
+          <div class="brand-mark" aria-hidden="true"><span></span><span></span></div>
+          <div>
+            <div class="eyebrow">MEDIA INDEX / 01</div>
+            <div class="brand-name">影音收集庫</div>
+          </div>
+        </div>
+        <div class="sidebar-divider"></div>
+        <nav class="nav-stack">
+          <button class="nav-item active" data-view="library"><span class="nav-icon">▦</span><span>收藏總覽</span><span class="nav-count" id="nav-count">08</span></button>
+          <button class="nav-item" data-view="settings"><span class="nav-icon">⌘</span><span>資料來源</span></button>
+        </nav>
+        <div class="sidebar-note">
+          <span class="live-dot"></span>
+          <div>
+            <div class="micro-label">CURRENT MODE</div>
+            <strong id="mode-label">示範資料</strong>
+          </div>
+        </div>
+        <div class="sidebar-footer">
+          <div class="quote-mark">“</div>
+          <p>把想看的，留在看得見的地方。</p>
+          <small>Google Sheet · Apps Script ready</small>
+        </div>
+      </aside>
+
+      <main class="main-content">
+        <header class="topbar">
+          <div class="mobile-brand">
+            <div class="brand-mark small" aria-hidden="true"><span></span><span></span></div>
+            <span>影音收集庫</span>
+          </div>
+          <nav class="mobile-nav-switcher" aria-label="頁面導覽">
+            <a class="mobile-nav-button active" data-view="library" href="/">收藏總覽</a>
+            <a class="mobile-nav-button" data-view="settings" href="/settings">資料來源</a>
+          </nav>
+          <div class="topbar-context"><span class="context-dot"></span><span>PERSONAL ARCHIVE</span></div>
+          <div class="topbar-actions">
+            <button class="icon-button" id="refresh-button" title="重新整理" aria-label="重新整理">↻</button>
+          </div>
+        </header>
+
+        <section id="library-view" class="view-panel">
+          <div class="hero-row">
+            <div>
+              <div class="section-kicker">COLLECTION / 2026</div>
+              <h1>今天，想看什麼？</h1>
+              <p class="hero-copy">先收進來，等有空再看。你的影音靈感，都在這裡排好。</p>
+            </div>
+            <button class="primary-button hero-action" id="add-button"><span class="plus">＋</span> 新增收藏</button>
+          </div>
+
+          <div class="stat-strip" id="stat-strip" aria-label="收藏統計"></div>
+
+          <div class="toolbar">
+            <label class="search-box" for="search-input">
+              <span aria-hidden="true">⌕</span>
+              <input id="search-input" type="search" placeholder="搜尋標題、標籤或備註…" autocomplete="off" />
+              <kbd>⌘ K</kbd>
+            </label>
+            <div class="toolbar-actions">
+              <button class="filter-toggle" id="filter-toggle"><span>篩選</span><span class="filter-badge" id="filter-badge">0</span><span class="chevron">⌄</span></button>
+              <label class="sort-select"><span class="sort-label">排序</span><select id="sort-select"><option value="updated">最近更新</option><option value="created">最近加入</option><option value="rating">評分最高</option><option value="title">標題順序</option></select></label>
+            </div>
+          </div>
+
+          <div class="filter-panel" id="filter-panel" hidden>
+            <div class="filter-group"><span class="filter-label">影音類型</span><div class="chip-row" id="type-filters"></div></div>
+            <div class="filter-group"><span class="filter-label">觀看狀態</span><div class="chip-row" id="status-filters"></div></div>
+            <div class="filter-group"><span class="filter-label">最低評分</span><div class="chip-row" id="rating-filters"></div></div>
+            <div class="filter-group"><span class="filter-label">分類</span><div class="chip-row" id="category-filters"></div></div>
+            <div class="filter-group"><span class="filter-label">標籤</span><div class="chip-row" id="tag-filters"></div></div>
+            <button class="text-button clear-filters" id="clear-filters">清除所有篩選</button>
+          </div>
+
+          <div class="result-heading"><div><span class="section-kicker">YOUR SHELF</span><h2>收藏清單 <span id="result-count">0</span></h2></div><div class="view-caption" id="view-caption">示範資料 · 即時篩選</div></div>
+          <div class="media-grid" id="media-grid" aria-live="polite"></div>
+        </section>
+
+        <section id="settings-view" class="view-panel" hidden>
+          <div class="hero-row compact-hero">
+            <div><div class="section-kicker">CONNECTION / SETUP</div><h1>把資料放在你的表格裡</h1><p class="hero-copy">前端先用示範資料預覽，準備好 Apps Script Web App URL 後再切換。</p></div>
+          </div>
+          <div class="settings-layout">
+            <div class="settings-card primary-settings-card">
+              <div class="card-heading"><div><span class="section-kicker">DATA SOURCE</span><h2>資料來源</h2></div><span class="connection-pill" id="connection-pill">示範模式</span></div>
+              <div class="mode-switch" role="group" aria-label="資料來源模式"><button class="mode-button active" data-mode="demo">示範資料</button><button class="mode-button" data-mode="api">Google Sheet API</button></div>
+              <label class="field-label" for="api-url">Apps Script Web App URL <span>選填</span></label>
+              <input class="text-input" id="api-url" type="url" placeholder="https://script.google.com/macros/s/…/exec" />
+              <p class="field-hint">請使用以 `/exec` 結尾的部署網址。網址只儲存在此瀏覽器的 localStorage。</p>
+              <div class="settings-actions"><button class="secondary-button" id="test-connection">測試連線</button><button class="primary-button" id="save-settings">儲存設定</button></div>
+              <div class="connection-result" id="connection-result" hidden></div>
+            </div>
+            <div class="settings-card checklist-card">
+              <span class="section-kicker">QUICK START</span><h2>三步接上 Google Sheet</h2>
+              <ol class="setup-steps"><li><span>01</span><div><strong>建立工作表</strong><p>新增 `Media` 與 `Lists` 工作表，第一列貼上規格中的欄位名稱。</p></div></li><li><span>02</span><div><strong>貼上 Apps Script</strong><p>使用專案內 `apps-script/Code.gs`，在 Script Properties 設定 `SPREADSHEET_ID`。</p></div></li><li><span>03</span><div><strong>部署為 Web App</strong><p>執行身分選「自己」，存取權依你的使用情境設定，再把 `/exec` URL 貼回這裡。</p></div></li></ol>
+              <a class="inline-link" href="/SPEC.md" target="_blank" rel="noreferrer">查看完整規格書 <span>↗</span></a>
+            </div>
+          </div>
+          <div class="settings-card contract-card"><div class="card-heading"><div><span class="section-kicker">SHEET CONTRACT</span><h2>Media 欄位預覽</h2></div><span class="muted-label">12 columns</span></div><div class="field-table" id="field-table"></div></div>
+        </section>
+      </main>
+    </div>
+
+    <div class="drawer-backdrop" id="drawer-backdrop" hidden></div>
+    <aside class="drawer" id="drawer" aria-label="收藏詳情" aria-hidden="true">
+      <div class="drawer-header"><div><span class="section-kicker" id="drawer-kicker">NEW ENTRY</span><h2 id="drawer-title">新增收藏</h2></div><button class="close-button" id="close-drawer" aria-label="關閉">×</button></div>
+      <div class="drawer-scroll" id="drawer-scroll"></div>
+    </aside>
+
+    <button class="mobile-add-fab" id="mobile-add-button" aria-label="新增收藏"><span>＋</span> 新增</button>
+    <div class="toast-stack" id="toast-stack" aria-live="polite"></div>
+    <script type="module" src="/app.js?v=20261027-1410"></script>
+  </body>
+</html>
