@@ -3,14 +3,14 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#102522" />
+    <meta name="theme-color" content="#14171a" />
     <meta name="description" content="以 Google 試算表管理影音收藏的響應式工作台" />
     <title>陳記住工作室｜影音收集庫</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700&family=Noto+Serif+TC:wght@500;600;700;800&display=swap" rel="stylesheet" />
     <script src="https://accounts.google.com/gsi/client" async defer></script>
-    <link rel="stylesheet" href="styles.css?v=20261030-1405" />
+    <link rel="stylesheet" href="styles.css?v=20261030-1739" />
   </head>
   <body>
     <div class="app-shell">
@@ -22,10 +22,9 @@
             <div class="brand-name">陳記住工作室</div>
           </div>
         </div>
-        <div class="sidebar-divider"></div>
-        <nav class="nav-stack">
-          <button class="nav-item active" data-view="library"><span class="nav-icon">▦</span><span>收藏總覽</span><span class="nav-count" id="nav-count">08</span></button>
-          <button class="nav-item" data-view="settings"><span class="nav-icon">⌘</span><span>資料來源</span></button>
+        <div class="sidebar-divider" id="sidebar-navigation-divider" hidden></div>
+        <nav class="nav-stack" id="desktop-navigation" aria-label="管理導覽" hidden>
+          <button class="nav-item" id="settings-nav-desktop" data-view="settings"><span class="nav-icon">⌘</span><span>資料來源</span></button>
         </nav>
         <div class="sidebar-note">
           <span class="live-dot"></span>
@@ -47,9 +46,8 @@
             <img class="brand-avatar small" src="portrait-brand.png" alt="陳記住工作室肖像" />
             <span>陳記住工作室</span>
           </div>
-          <nav class="mobile-nav-switcher" aria-label="頁面導覽">
-            <a class="mobile-nav-button active" data-view="library" href="./">收藏總覽</a>
-            <a class="mobile-nav-button" data-view="settings" href="?view=settings">資料來源</a>
+          <nav class="mobile-nav-switcher" id="mobile-navigation" aria-label="管理導覽" hidden>
+            <a class="mobile-nav-button" id="settings-nav-mobile" data-view="settings" href="?view=settings">資料來源</a>
           </nav>
           <div class="topbar-context"><span class="context-dot"></span><span>PERSONAL ARCHIVE</span></div>
           <div class="topbar-actions">
@@ -62,11 +60,7 @@
         </header>
 
         <section id="library-view" class="view-panel">
-          <div class="hero-row">
-            <div>
-              <h1>今天，想看什麼？</h1>
-              <p class="hero-copy">先收進來，等有空再看。你的影音靈感，都在這裡排好。</p>
-            </div>
+          <div class="hero-row archive-actions" id="library-actions">
             <button class="primary-button hero-action" id="add-button"><span class="plus">＋</span> 新增收藏</button>
           </div>
 
@@ -118,6 +112,6 @@
 
     <button class="mobile-add-fab" id="mobile-add-button" aria-label="新增收藏"><span>＋</span> 新增</button>
     <div class="toast-stack" id="toast-stack" aria-live="polite"></div>
-    <script type="module" src="app.js?v=20261030-1405"></script>
+    <script type="module" src="app.js?v=20261030-1739"></script>
   </body>
 </html>
