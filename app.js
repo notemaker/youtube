@@ -1,7 +1,8 @@
 const STORAGE_KEY = 'mediavault-items-v1';
 const SETTINGS_KEY = 'mediavault-settings-v1';
 
-const TYPES = ['影片', 'Podcast', '音樂', '直播', '文章／其他'];
+const DEFAULT_TYPES = ['影片', 'Podcast', '音樂', '直播', '文章／其他'];
+const TYPES_KEY = 'mediavault-types-v1';
 const STATUSES = [
   { value: '待觀看', className: 'pending' },
   { value: '觀看中', className: 'watching' },
@@ -28,10 +29,11 @@ const seedItems = [
 
 const state = {
   items: [],
+  mediaTypes: [],
   filteredItems: [],
   selectedItem: null,
   editing: false,
-  filters: { type: '', status: '', rating: 0, category: '', tag: '' },
+  filters: { type: '' },
   query: '',
   sort: 'updated',
   settings: { mode: 'demo', apiUrl: '' }
@@ -49,6 +51,15 @@ function getSettings() {
 }
 
 function saveLocalItems(items) { localStorage.setItem(STORAGE_KEY, JSON.stringify(items)); }
+function loadMediaTypes() {
+  try {
+    const stored = JSON.parse(localStorage.getItem(TYPES_KEY) || 'null');
+    if (Array.isArray(stored) && stored.length) return [...new Set(stored.map(String).map((value) => value.trim()).filter(Boolean))];
+  } catch { /* use defaults */ }
+  localStorage.setItem(TYPES_KEY, JSON.stringify(DEFAULT_TYPES));
+  return [...DEFAULT_TYPES];
+}
+function saveMediaTypes(types) { localStorage.setItem(TYPES_KEY, JSON.stringify(types)); }
 function loadLocalItems() {
   try {
     const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
@@ -59,14 +70,20 @@ function loadLocalItems() {
 }
 
 const dataSource = {
+  async meta() {
+    if (state.settings.mode === 'demo') return { mediaTypes: state.mediaTypes };
+    if (!state.settings.apiUrl) throw new Error('請先在「資料來源」設定 Apps Script Web App URL。');
+    const response = await fetch(`${state.settings.apiUrl}?action=meta`, { headers: { Accept: 'application/json' } });
+    const payload = await response.json();
+    if (!payload.ok) throw new Error(payload.error?.message || 'API 回應失敗。');
+    return payload.data || {};
+  },
   async list() {
     if (state.settings.mode === 'demo') return loadLocalItems();
     if (!state.settings.apiUrl) throw new Error('請先在「資料來源」設定 Apps Script Web App URL。');
     const params = new URLSearchParams({ action: 'list' });
     if (state.query) params.set('q', state.query);
-    if (state.filters.status) params.set('status', state.filters.status);
     if (state.filters.type) params.set('mediaType', state.filters.type);
-    if (state.filters.category) params.set('category', state.filters.category);
     if (state.sort) params.set('sort', state.sort);
     const response = await fetch(`${state.settings.apiUrl}?${params.toString()}`, { headers: { Accept: 'application/json' } });
     const payload = await response.json();
@@ -93,6 +110,14 @@ const dataSource = {
     const payload = await response.json();
     if (!payload.ok) throw new Error(payload.error?.message || 'API 回應失敗。');
     return payload.data;
+  },
+  async mutateType(action, value) {
+    if (state.settings.mode === 'demo') return { value };
+    if (!state.settings.apiUrl) throw new Error('請先設定 Apps Script Web App URL。');
+    const response = await fetch(state.settings.apiUrl, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=UTF-8' }, body: JSON.stringify({ action, value }) });
+    const payload = await response.json();
+    if (!response.ok || !payload.ok) throw new Error(payload.error?.message || `影音類型操作失敗（HTTP ${response.status}）。`);
+    return payload.data;
   }
 };
 
@@ -109,31 +134,43 @@ function ratingStars(rating) { return rating ? `${'★'.repeat(Math.floor(Number
 
 function renderStats() {
   const total = state.items.length;
-  const pending = state.items.filter((item) => item.status === '待觀看').length;
-  const watching = state.items.filter((item) => item.status === '觀看中').length;
-  const done = state.items.filter((item) => item.status === '已完成').length;
-  $('#stat-strip').innerHTML = [
-    ['收藏總數', total, ''], ['待觀看', pending, 'stat-accent'], ['觀看中', watching, ''], ['已完成', done, '']
-  ].map(([label, number, accent]) => `<div class="stat"><span class="stat-number ${accent}">${number}</span><span class="stat-label">${label}</span></div>`).join('');
   $('#nav-count').textContent = String(total).padStart(2, '0');
 }
 
-function renderFilters() {
-  const selected = state.filters;
-  $('#type-filters').innerHTML = TYPES.map((value) => chipHtml(value, value === selected.type, 'type')).join('');
-  $('#status-filters').innerHTML = STATUSES.map(({ value }) => chipHtml(value, value === selected.status, 'status')).join('');
-  $('#rating-filters').innerHTML = [4, 3, 2].map((value) => chipHtml(`${value} 分以上`, value === selected.rating, 'rating', value)).join('');
-  $('#category-filters').innerHTML = CATEGORIES.map((value) => chipHtml(value, value === selected.category, 'category')).join('');
-  const tags = [...new Set(state.items.flatMap(tagsOf))].sort((a, b) => a.localeCompare(b, 'zh-Hant'));
-  $('#tag-filters').innerHTML = tags.map((value) => chipHtml(`#${value}`, value === selected.tag, 'tag')).join('') || '<span class="muted-label">尚無標籤</span>';
-  $$('.chip').forEach((button) => button.addEventListener('click', () => {
-    const filter = button.dataset.filter;
-    const value = button.dataset.value;
-    state.filters[filter] = state.filters[filter] === value || (filter === 'rating' && state.filters.rating === Number(value)) ? (filter === 'rating' ? 0 : '') : (filter === 'rating' ? Number(value) : value);
-    renderFilters(); renderList();
-  }));
-  const count = Object.values(selected).filter(Boolean).length;
-  $('#filter-badge').textContent = count;
+function renderMediaTypeSelect() {
+  const select = $('#type-search-select');
+  if (!select) return;
+  select.innerHTML = `<option value="">所有影音類型</option>${state.mediaTypes.map((value) => `<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>`).join('')}`;
+  select.value = state.filters.type;
+  $('#remove-type-button').disabled = !state.filters.type;
+  select.onchange = () => { state.filters.type = select.value; renderMediaTypeSelect(); renderList(); };
+}
+
+async function addMediaType() {
+  const value = window.prompt('請輸入新的影音類型：', '線上課程')?.trim();
+  if (!value) return;
+  if (state.mediaTypes.some((type) => type.toLowerCase() === value.toLowerCase())) { showToast('這個影音類型已經存在。', 'error'); return; }
+  try {
+    await dataSource.mutateType('createType', value);
+    state.mediaTypes = [...state.mediaTypes, value];
+    saveMediaTypes(state.mediaTypes);
+    renderMediaTypeSelect();
+    showToast(`已新增影音類型「${value}」。`, 'success');
+  } catch (error) { showToast(error.message, 'error'); }
+}
+
+async function removeMediaType(value) {
+  if (state.mediaTypes.length <= 1) { showToast('至少要保留一個影音類型。', 'error'); return; }
+  if (state.items.some((item) => item.mediaType === value)) { showToast(`「${value}」已有收藏使用，暫時無法刪除。`, 'error'); return; }
+  if (!window.confirm(`確定要刪除影音類型「${value}」嗎？`)) return;
+  try {
+    await dataSource.mutateType('deleteType', value);
+    state.mediaTypes = state.mediaTypes.filter((type) => type !== value);
+    if (state.filters.type === value) state.filters.type = '';
+    saveMediaTypes(state.mediaTypes);
+    renderMediaTypeSelect(); renderList();
+    showToast(`已刪除影音類型「${value}」。`, 'success');
+  } catch (error) { showToast(error.message, 'error'); }
 }
 
 function chipHtml(label, selected, filter, value = label) { return `<button class="chip ${selected ? 'selected' : ''}" data-filter="${escapeHtml(filter)}" data-value="${escapeHtml(value)}">${escapeHtml(label)}</button>`; }
@@ -142,7 +179,7 @@ function applyFilters() {
   const query = state.query.trim().toLowerCase();
   let list = state.items.filter((item) => {
     const haystack = [item.title, item.sourceUrl, item.category, item.tags, item.notes].join(' ').toLowerCase();
-    return (!query || haystack.includes(query)) && (!state.filters.type || item.mediaType === state.filters.type) && (!state.filters.status || item.status === state.filters.status) && (!state.filters.category || item.category === state.filters.category) && (!state.filters.tag || tagsOf(item).includes(state.filters.tag)) && (!state.filters.rating || Number(item.rating || 0) >= Number(state.filters.rating));
+    return (!query || haystack.includes(query)) && (!state.filters.type || item.mediaType === state.filters.type);
   });
   list.sort((a, b) => {
     if (state.sort === 'rating') return Number(b.rating || 0) - Number(a.rating || 0);
@@ -201,7 +238,6 @@ function openForm(item = null) {
   $('#drawer-scroll').innerHTML = formHtml(item || { mediaType: '影片', status: '待觀看', rating: 0, category: '', title: '', sourceUrl: '', thumbnailUrl: '', tags: '', notes: '' });
   showDrawer();
   $('#media-form').addEventListener('submit', handleFormSubmit);
-  $$('.rating-star').forEach((star) => star.addEventListener('click', () => { $('#form-rating').value = star.dataset.rating; renderRatingInput(Number(star.dataset.rating)); }));
   $('#fetch-youtube-info')?.addEventListener('click', () => fetchYoutubeInfo(true));
   $('#form-url')?.addEventListener('blur', () => fetchYoutubeInfo(false));
 }
@@ -247,7 +283,15 @@ async function fetchYoutubeInfo(force = false) {
 
 function formHtml(item) {
   const select = (id, options, current) => `<select class="select-input" id="${id}">${options.map((option) => `<option ${option === current ? 'selected' : ''}>${escapeHtml(option)}</option>`).join('')}</select>`;
-  return `<form id="media-form" class="form-stack"><div class="field"><label class="field-label" for="form-url">來源連結 <span>必填</span></label><div class="field-inline-action"><input class="text-input" id="form-url" type="url" required value="${escapeHtml(item.sourceUrl)}" placeholder="貼上 YouTube 連結後會自動帶入" /><button class="secondary-button youtube-fetch-button" id="fetch-youtube-info" type="button">取用 YouTube</button></div><p class="field-hint compact-hint">貼上 YouTube 網址後離開欄位，或按「取用 YouTube」，會自動帶入標題與縮圖。</p></div><div class="field"><label class="field-label" for="form-title">標題 <span>必填</span></label><input class="text-input" id="form-title" required value="${escapeHtml(item.title)}" placeholder="例如：The art of noticing" /></div><div class="form-row"><div class="field"><label class="field-label" for="form-type">影音類型 <span>必填</span></label>${select('form-type', TYPES, item.mediaType)}</div><div class="field"><label class="field-label" for="form-status">觀看狀態 <span>必填</span></label>${select('form-status', STATUSES.map(({ value }) => value), item.status)}</div></div><div class="field"><label class="field-label" for="form-thumbnail">縮圖網址 <span>選填</span></label><input class="text-input" id="form-thumbnail" type="url" value="${escapeHtml(item.thumbnailUrl)}" placeholder="YouTube 縮圖會自動填入，也可自行修改" /></div><div class="form-row"><div class="field"><label class="field-label" for="form-category">分類</label>${select('form-category', ['未分類', ...CATEGORIES], item.category || '未分類')}</div><div class="field"><label class="field-label" for="form-tags">標籤</label><input class="text-input" id="form-tags" value="${escapeHtml(item.tags)}" placeholder="設計,靈感" /></div></div><div class="field"><span class="field-label">評分</span><div class="rating-input" id="rating-input">${[1, 2, 3, 4, 5].map((rating) => `<button type="button" class="rating-star ${Number(item.rating) >= rating ? 'active' : ''}" data-rating="${rating}" aria-label="${rating} 分">★</button>`).join('')}<input id="form-rating" type="hidden" value="${Number(item.rating) || 0}" /></div></div><div class="field"><label class="field-label" for="form-notes">備註</label><textarea class="textarea-input" id="form-notes" placeholder="記下為什麼收藏，或之後想回來看的地方…">${escapeHtml(item.notes)}</textarea></div><div class="form-footer"><span class="required-note">* 為必要欄位</span><button class="primary-button" type="submit">${state.editing ? '儲存變更' : '加入收藏'}</button></div></form>`;
+  return `<form id="media-form" class="form-stack">
+    <div class="field"><label class="field-label" for="form-url">來源連結 <span>必填</span></label><div class="field-inline-action"><input class="text-input" id="form-url" type="url" required value="${escapeHtml(item.sourceUrl)}" placeholder="貼上 YouTube 連結後會自動帶入" /><button class="secondary-button youtube-fetch-button" id="fetch-youtube-info" type="button">取用 YouTube</button></div><p class="field-hint compact-hint">貼上 YouTube 網址後離開欄位，或按「取用 YouTube」，會自動帶入標題與縮圖。</p></div>
+    <div class="field"><label class="field-label" for="form-title">標題 <span>必填</span></label><input class="text-input" id="form-title" required value="${escapeHtml(item.title)}" placeholder="例如：The art of noticing" /></div>
+    <div class="field"><label class="field-label" for="form-type">影音類型 <span>必填</span></label>${select('form-type', state.mediaTypes, item.mediaType)}</div>
+    <div class="field"><label class="field-label" for="form-thumbnail">縮圖網址 <span>選填</span></label><input class="text-input" id="form-thumbnail" type="url" value="${escapeHtml(item.thumbnailUrl)}" placeholder="YouTube 縮圖會自動填入，也可自行修改" /></div>
+    <div class="field"><label class="field-label" for="form-category">分類</label>${select('form-category', ['未分類', ...CATEGORIES], item.category || '未分類')}</div>
+    <div class="field"><label class="field-label" for="form-notes">備註</label><textarea class="textarea-input" id="form-notes" placeholder="記下為什麼收藏，或之後想回來看的地方…">${escapeHtml(item.notes)}</textarea></div>
+    <div class="form-footer"><span class="required-note">* 為必要欄位</span><button class="primary-button" type="submit">${state.editing ? '儲存變更' : '加入收藏'}</button></div>
+  </form>`;
 }
 
 function renderRatingInput(value) { $$('.rating-star').forEach((star) => star.classList.toggle('active', Number(star.dataset.rating) <= value)); }
@@ -259,7 +303,7 @@ async function handleFormSubmit(event) {
   try { const parsedUrl = new URL(sourceUrl); if (!['http:', 'https:'].includes(parsedUrl.protocol)) throw new Error('protocol'); } catch { showToast('請輸入有效的 HTTP(S) 來源連結。', 'error'); return; }
   if (!title) { showToast('請填寫影音標題。', 'error'); return; }
   const now = new Date().toISOString();
-  const item = { id: state.selectedItem?.id || `mv-${Date.now()}`, title, mediaType: $('#form-type').value, sourceUrl, thumbnailUrl: $('#form-thumbnail').value.trim(), category: $('#form-category').value === '未分類' ? '' : $('#form-category').value, tags: $('#form-tags').value.trim(), status: $('#form-status').value, rating: Number($('#form-rating').value) || 0, notes: $('#form-notes').value.trim(), createdAt: state.selectedItem?.createdAt || now, updatedAt: now };
+  const item = { id: state.selectedItem?.id || `mv-${Date.now()}`, title, mediaType: $('#form-type').value, sourceUrl, thumbnailUrl: $('#form-thumbnail').value.trim(), category: $('#form-category').value === '未分類' ? '' : $('#form-category').value, tags: state.selectedItem?.tags || '', status: state.selectedItem?.status || '待觀看', rating: Number(state.selectedItem?.rating) || 0, notes: $('#form-notes').value.trim(), createdAt: state.selectedItem?.createdAt || now, updatedAt: now };
   const submitButton = event.currentTarget.querySelector('button[type="submit"]');
   submitButton.disabled = true; submitButton.textContent = '儲存中…';
   try {
@@ -278,19 +322,23 @@ function confirmDelete(item) {
 async function refreshData(showSuccess = true) {
   $('#media-grid').innerHTML = '<div class="empty-state"><div class="empty-orb">…</div><h3>正在整理你的收藏</h3><p>資料很快就會回來。</p></div>';
   try {
+    if (state.settings.mode === 'api') {
+      const meta = await dataSource.meta();
+      if (Array.isArray(meta.mediaTypes) && meta.mediaTypes.length) state.mediaTypes = [...new Set(meta.mediaTypes.map(String).filter(Boolean))];
+    }
     state.items = await dataSource.list();
-    renderStats(); renderFilters(); renderList();
+    renderStats(); renderMediaTypeSelect(); renderList();
     if (showSuccess) showToast('清單已更新。', 'success');
   } catch (error) {
     state.items = [];
-    renderStats(); renderFilters(); renderList();
+    renderStats(); renderMediaTypeSelect(); renderList();
     showToast(error.message, 'error', { label: '重試', handler: () => refreshData(false) });
   }
 }
 
 function showDrawer() { $('#drawer-backdrop').hidden = false; requestAnimationFrame(() => $('#drawer').classList.add('open')); $('#drawer').setAttribute('aria-hidden', 'false'); document.body.style.overflow = 'hidden'; }
 function closeDrawer() { $('#drawer').classList.remove('open'); $('#drawer').setAttribute('aria-hidden', 'true'); setTimeout(() => { $('#drawer-backdrop').hidden = true; }, 250); document.body.style.overflow = ''; }
-function clearFilters() { state.filters = { type: '', status: '', rating: 0, category: '', tag: '' }; state.query = ''; $('#search-input').value = ''; renderFilters(); renderList(); }
+function clearFilters() { state.filters = { type: '' }; state.query = ''; $('#search-input').value = ''; renderMediaTypeSelect(); renderList(); }
 function showToast(message, type = '', action = null) { const toast = document.createElement('div'); toast.className = `toast ${type}`; toast.append(document.createTextNode(message)); if (action) { const button = document.createElement('button'); button.className = 'toast-action'; button.textContent = action.label; button.addEventListener('click', () => { toast.remove(); action.handler(); }); toast.append(button); } $('#toast-stack').appendChild(toast); setTimeout(() => toast.remove(), 5000); }
 
 function setView(view, { syncUrl = true } = {}) {
@@ -336,10 +384,10 @@ function saveSettings() {
 
 function init() {
   state.settings = getSettings();
+  state.mediaTypes = loadMediaTypes();
   $('#search-input').addEventListener('input', (event) => { state.query = event.target.value; renderList(); });
-  $('#sort-select').addEventListener('change', (event) => { state.sort = event.target.value; renderList(); });
-  $('#filter-toggle').addEventListener('click', () => { $('#filter-panel').hidden = !$('#filter-panel').hidden; });
-  $('#clear-filters').addEventListener('click', clearFilters);
+  $('#add-type-button').addEventListener('click', addMediaType);
+  $('#remove-type-button').addEventListener('click', () => { if (state.filters.type) removeMediaType(state.filters.type); });
   $('#add-button').addEventListener('click', () => openForm());
   $('#mobile-add-button').addEventListener('click', () => openForm());
   $('#refresh-button').addEventListener('click', () => refreshData(true));

@@ -9,7 +9,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700&family=Noto+Serif+TC:wght@500;600;700;800&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="styles.css?v=20261030-0945" />
+    <link rel="stylesheet" href="styles.css?v=20261030-1028" />
   </head>
   <body>
     <div class="app-shell">
@@ -66,27 +66,15 @@
             <button class="primary-button hero-action" id="add-button"><span class="plus">＋</span> 新增收藏</button>
           </div>
 
-          <div class="stat-strip" id="stat-strip" aria-label="收藏統計"></div>
-
           <div class="toolbar">
             <label class="search-box" for="search-input">
               <span aria-hidden="true">⌕</span>
-              <input id="search-input" type="search" placeholder="搜尋標題、標籤或備註…" autocomplete="off" />
+              <input id="search-input" type="search" placeholder="搜尋影音類型" autocomplete="off" />
+              <select id="type-search-select" class="type-search-select" aria-label="影音類型"></select>
+              <button class="search-type-action" id="add-type-button" type="button" title="新增影音類型" aria-label="新增影音類型">＋</button>
+              <button class="search-type-action remove" id="remove-type-button" type="button" title="刪除目前影音類型" aria-label="刪除目前影音類型">×</button>
               <kbd>⌘ K</kbd>
             </label>
-            <div class="toolbar-actions">
-              <button class="filter-toggle" id="filter-toggle"><span>篩選</span><span class="filter-badge" id="filter-badge">0</span><span class="chevron">⌄</span></button>
-              <label class="sort-select"><span class="sort-label">排序</span><select id="sort-select"><option value="updated">最近更新</option><option value="created">最近加入</option><option value="rating">評分最高</option><option value="title">標題順序</option></select></label>
-            </div>
-          </div>
-
-          <div class="filter-panel" id="filter-panel" hidden>
-            <div class="filter-group"><span class="filter-label">影音類型</span><div class="chip-row" id="type-filters"></div></div>
-            <div class="filter-group"><span class="filter-label">觀看狀態</span><div class="chip-row" id="status-filters"></div></div>
-            <div class="filter-group"><span class="filter-label">最低評分</span><div class="chip-row" id="rating-filters"></div></div>
-            <div class="filter-group"><span class="filter-label">分類</span><div class="chip-row" id="category-filters"></div></div>
-            <div class="filter-group"><span class="filter-label">標籤</span><div class="chip-row" id="tag-filters"></div></div>
-            <button class="text-button clear-filters" id="clear-filters">清除所有篩選</button>
           </div>
 
           <div class="result-heading"><div><span class="section-kicker">YOUR SHELF</span><h2>收藏清單 <span id="result-count">0</span></h2></div><div class="view-caption" id="view-caption">示範資料 · 即時篩選</div></div>
@@ -126,6 +114,6 @@
 
     <button class="mobile-add-fab" id="mobile-add-button" aria-label="新增收藏"><span>＋</span> 新增</button>
     <div class="toast-stack" id="toast-stack" aria-live="polite"></div>
-    <script type="module" src="app.js?v=20261027-1410"></script>
+    <script type="module" src="app.js?v=20261030-1028"></script>
   </body>
 </html>
