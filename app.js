@@ -44,6 +44,29 @@ const state = {
 
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
+const IS_GITHUB_PAGES = location.hostname === 'notemaker.github.io';
+const AUTH_API_ORIGIN = IS_GITHUB_PAGES ? 'https://mediavault-2o7cw76y.manus.space' : '';
+
+function authApiUrl(path) { return `${AUTH_API_ORIGIN}${path}`; }
+function authFetch(path, options = {}) {
+  const headers = new Headers(options.headers || {});
+  const token = state.auth.sessionToken || sessionStorage.getItem('mediavault-admin-token');
+  if (token) headers.set('Authorization', `Bearer ${token}`);
+  return fetch(authApiUrl(path), { ...options, headers, credentials: 'include' });
+}
+function viewUrl(view) {
+  if (IS_GITHUB_PAGES) return view === 'settings' ? '/youtube/?view=settings' : '/youtube/';
+  return view === 'settings' ? '/settings' : '/';
+}
+function initialView() {
+  if (IS_GITHUB_PAGES) return new URLSearchParams(location.search).get('view') === 'settings' ? 'settings' : 'library';
+  return location.pathname === '/settings' ? 'settings' : 'library';
+}
+async function readApiJson(response, label = '登入服務') {
+  const contentType = response.headers.get('content-type') || '';
+  if (!contentType.includes('application/json')) throw new Error(`${label}未提供 JSON API。若使用 GitHub Pages，請確認已發布支援版本的 Manus 後端，且 Pages 已更新至最新版。`);
+  return response.json();
+}
 
 function escapeHtml(value = '') {
   return String(value).replace(/[&<>'"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#039;', '"': '&quot;' }[char]));
@@ -103,9 +126,8 @@ const dataSource = {
       return item;
     }
     if (!state.settings.apiUrl) throw new Error('請先設定 Apps Script Web App URL。');
-    // 使用 text/plain 讓跨來源 POST 保持 CORS simple request，避免 Apps Script Web App 的 OPTIONS 預檢被擋下。
-    // doPost 仍以 e.postData.contents 解析 JSON，因此不需要修改 API payload 契約。
-    const response = await fetch('/api/sheet-write', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ apiUrl: state.settings.apiUrl, payload: { action, item, id } }) });
+    // 寫入先經 Manus 管理者 API 驗證，再由伺服器轉送至 Apps Script，避免前端繞過登入限制。
+    const response = await authFetch('/api/sheet-write', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ apiUrl: state.settings.apiUrl, payload: { action, item, id } }) });
     if (!response.ok) {
       if (response.status === 405) throw new Error('Apps Script 部署目前只允許 GET；請確認 Code.gs 包含 doPost(e)，並重新部署 Web App。');
       throw new Error(`Apps Script 回應 HTTP ${response.status}。`);
@@ -117,7 +139,7 @@ const dataSource = {
   async mutateType(action, value) {
     if (state.settings.mode === 'demo') return { value };
     if (!state.settings.apiUrl) throw new Error('請先設定 Apps Script Web App URL。');
-    const response = await fetch('/api/sheet-write', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ apiUrl: state.settings.apiUrl, payload: { action, value } }) });
+    const response = await authFetch('/api/sheet-write', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ apiUrl: state.settings.apiUrl, payload: { action, value } }) });
     const payload = await response.json();
     if (!response.ok || !payload.ok) throw new Error(payload.error?.message || `影音類型操作失敗（HTTP ${response.status}）。`);
     return payload.data;
@@ -399,7 +421,7 @@ function setView(view, { syncUrl = true } = {}) {
   $('#library-view').hidden = view !== 'library';
   $('#settings-view').hidden = view !== 'settings';
   if (view === 'settings') renderSettings();
-  if (syncUrl) window.history.pushState({}, '', view === 'settings' ? '/settings' : '/');
+  if (syncUrl) window.history.pushState({}, '', viewUrl(view));
 }
 
 function renderSettings() {
@@ -430,20 +452,23 @@ function updateWriteControls() {
 }
 
 async function refreshAuth() {
+  state.auth.sessionToken = sessionStorage.getItem('mediavault-admin-token') || '';
   try {
-    const response = await fetch('/api/auth/me', { headers: { Accept: 'application/json' } });
-    const payload = await response.json();
-    state.auth = { authenticated: Boolean(payload.authenticated), user: payload.user || null };
-  } catch { state.auth = { authenticated: false, user: null }; }
+    const response = await authFetch('/api/auth/me', { headers: { Accept: 'application/json' } });
+    const payload = await readApiJson(response);
+    state.auth = { authenticated: Boolean(payload.authenticated), user: payload.user || null, sessionToken: state.auth.sessionToken };
+    if (!state.auth.authenticated) { sessionStorage.removeItem('mediavault-admin-token'); state.auth.sessionToken = ''; }
+  } catch { state.auth = { authenticated: false, user: null, sessionToken: '' }; sessionStorage.removeItem('mediavault-admin-token'); }
   updateWriteControls();
 }
 
 async function handleGoogleCredential(response) {
   try {
-    const result = await fetch('/api/auth/google', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ credential: response.credential }) });
-    const payload = await result.json();
+    const result = await authFetch('/api/auth/google', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ credential: response.credential }) });
+    const payload = await readApiJson(result);
     if (!result.ok || !payload.ok) throw new Error(payload.error || 'Google 登入失敗。');
-    state.auth = { authenticated: true, user: payload.user };
+    sessionStorage.setItem('mediavault-admin-token', payload.sessionToken);
+    state.auth = { authenticated: true, user: payload.user, sessionToken: payload.sessionToken };
     updateWriteControls();
     showToast('管理者登入成功，已開啟收藏管理功能。', 'success');
   } catch (error) { showToast(error.message, 'error'); }
@@ -459,8 +484,9 @@ function initGoogleLogin() {
 }
 
 async function logout() {
-  await fetch('/api/auth/logout', { method: 'POST' });
-  state.auth = { authenticated: false, user: null };
+  try { await authFetch('/api/auth/logout', { method: 'POST' }); } catch { /* clear the local UI even if the server is temporarily unavailable */ }
+  sessionStorage.removeItem('mediavault-admin-token');
+  state.auth = { authenticated: false, user: null, sessionToken: '' };
   updateWriteControls();
   showToast('已登出，現在可以瀏覽與播放影音。', 'success');
 }
@@ -501,13 +527,13 @@ function init() {
   $('#close-drawer').addEventListener('click', closeDrawer);
   $('#drawer-backdrop').addEventListener('click', closeDrawer);
   $$('[data-view]').forEach((item) => item.addEventListener('click', (event) => { event.preventDefault(); setView(item.dataset.view); }));
-  window.addEventListener('popstate', () => setView(window.location.pathname === '/settings' ? 'settings' : 'library', { syncUrl: false }));
+  window.addEventListener('popstate', () => setView(initialView(), { syncUrl: false }));
   $$('.mode-button').forEach((button) => button.addEventListener('click', () => { $$('.mode-button').forEach((entry) => entry.classList.remove('active')); button.classList.add('active'); }));
   $('#test-connection').addEventListener('click', testConnection);
   $('#save-settings').addEventListener('click', saveSettings);
   $('#logout-button').addEventListener('click', logout);
   document.addEventListener('keydown', (event) => { if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') { event.preventDefault(); $('#search-input').focus(); } if (event.key === 'Escape' && !$('#drawer-backdrop').hidden) closeDrawer(); });
-  setView(window.location.pathname === '/settings' ? 'settings' : 'library', { syncUrl: false });
+  setView(initialView(), { syncUrl: false });
   initGoogleLogin();
   refreshAuth().finally(() => refreshData(false));
 }
