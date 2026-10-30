@@ -157,11 +157,6 @@ function statusClass(status) { return STATUSES.find((entry) => entry.value === s
 function tagsOf(item) { return String(item.tags || '').split(',').map((tag) => tag.trim()).filter(Boolean); }
 function ratingStars(rating) { return rating ? `${'★'.repeat(Math.floor(Number(rating)))}${Number(rating) % 1 ? '½' : ''}` : ''; }
 
-function renderStats() {
-  const total = state.items.length;
-  $('#nav-count').textContent = String(total).padStart(2, '0');
-}
-
 function renderMediaTypeSelect() {
   const select = $('#type-search-select');
   if (!select) return;
@@ -402,11 +397,11 @@ async function refreshData(showSuccess = true) {
       if (Array.isArray(meta.mediaTypes) && meta.mediaTypes.length) state.mediaTypes = [...new Set(meta.mediaTypes.map(String).filter(Boolean))];
     }
     state.items = await dataSource.list();
-    renderStats(); renderMediaTypeSelect(); renderList();
+    renderMediaTypeSelect(); renderList();
     if (showSuccess) showToast('清單已更新。', 'success');
   } catch (error) {
     state.items = [];
-    renderStats(); renderMediaTypeSelect(); renderList();
+    renderMediaTypeSelect(); renderList();
     showToast(error.message, 'error', { label: '重試', handler: () => refreshData(false) });
   }
 }
