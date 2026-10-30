@@ -184,7 +184,7 @@ function applyFilters() {
   const query = state.query.trim().toLowerCase();
   let list = state.items.filter((item) => {
     const haystack = [item.title, item.sourceUrl, item.category, item.tags, item.notes].join(' ').toLowerCase();
-    return (!query || haystack.includes(query)) && (!state.filters.type || item.mediaType === state.filters.type);
+    return (!query || haystack.includes(query)) && (!state.filters.type || displayMediaType(item) === state.filters.type);
   });
   list.sort((a, b) => {
     if (state.sort === 'rating') return Number(b.rating || 0) - Number(a.rating || 0);
@@ -225,8 +225,11 @@ function renderList() {
 function mediaCardHtml(item) {
   const tags = tagsOf(item);
   const image = item.thumbnailUrl ? `<img src="${escapeHtml(item.thumbnailUrl)}" alt="${escapeHtml(item.title)} 縮圖" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('div'), {className:'image-placeholder', textContent:'▶'}))" />` : '<div class="image-placeholder">▶</div>';
-  return `<article class="media-card" data-id="${escapeHtml(item.id)}"><div class="media-card-image">${image}<span class="media-type-pill">${escapeHtml(item.mediaType || '其他')}</span><span class="status-pill ${statusClass(item.status)}">${escapeHtml(item.status || '待觀看')}</span></div><div class="media-card-body"><div class="card-category">${escapeHtml(item.category || '未分類')}</div><h3>${escapeHtml(item.title)}</h3><div class="card-meta"><div class="card-tags">${tags.slice(0, 2).map((tag) => `<span class="card-tag">#${escapeHtml(tag)}</span>`).join('')}</div>${item.rating ? `<span class="card-rating">${ratingStars(item.rating)}</span>` : ''}</div><div class="card-footer"><span class="card-time">更新於 ${formatDate(item.updatedAt)}</span><div class="card-actions"><a class="card-open" href="${escapeHtml(item.sourceUrl)}" target="_blank" rel="noreferrer">開啟來源 ↗</a><button class="card-action card-edit" type="button" data-id="${escapeHtml(item.id)}">修改</button><button class="card-action delete card-delete" type="button" data-id="${escapeHtml(item.id)}">刪除</button></div></div></div></article>`;
+  const mediaType = displayMediaType(item);
+  return `<article class="media-card" data-id="${escapeHtml(item.id)}"><div class="media-card-image">${image}<span class="media-type-pill">${escapeHtml(mediaType)}</span><span class="status-pill ${statusClass(item.status)}">${escapeHtml(item.status || '待觀看')}</span></div><div class="media-card-body"><div class="card-category">${escapeHtml(mediaType)}</div><h3>${escapeHtml(item.title)}</h3><div class="card-meta"><div class="card-tags">${tags.slice(0, 2).map((tag) => `<span class="card-tag">#${escapeHtml(tag)}</span>`).join('')}</div>${item.rating ? `<span class="card-rating">${ratingStars(item.rating)}</span>` : ''}</div><div class="card-footer"><span class="card-time">更新於 ${formatDate(item.updatedAt)}</span><div class="card-actions"><a class="card-open" href="${escapeHtml(item.sourceUrl)}" target="_blank" rel="noreferrer">開啟來源 ↗</a><button class="card-action card-edit" type="button" data-id="${escapeHtml(item.id)}">修改</button><button class="card-action delete card-delete" type="button" data-id="${escapeHtml(item.id)}">刪除</button></div></div></div></article>`;
 }
+
+function displayMediaType(item) { return item.mediaType && state.mediaTypes.includes(item.mediaType) ? item.mediaType : UNCLASSIFIED_TYPE; }
 
 function openDetail(id) {
   const item = state.items.find((entry) => entry.id === id);
@@ -242,7 +245,7 @@ function openDetail(id) {
 
 function detailHtml(item) {
   const image = item.thumbnailUrl ? `<img src="${escapeHtml(item.thumbnailUrl)}" alt="${escapeHtml(item.title)} 縮圖" onerror="this.replaceWith(Object.assign(document.createElement('div'), {className:'image-placeholder', textContent:'▶'}))" />` : '<div class="image-placeholder">▶</div>';
-  return `<div class="detail-image">${image}</div><div class="detail-topline"><span class="card-category">${escapeHtml(item.category || '未分類')}</span><span class="status-pill ${statusClass(item.status)}">${escapeHtml(item.status)}</span></div><div class="detail-title">${escapeHtml(item.title)}</div><div class="detail-tags">${tagsOf(item).map((tag) => `<span class="card-tag">#${escapeHtml(tag)}</span>`).join('') || '<span class="muted-label">尚未加上標籤</span>'}</div><dl class="detail-grid"><div class="detail-data"><dt>影音類型</dt><dd>${escapeHtml(item.mediaType)}</dd></div><div class="detail-data"><dt>評分</dt><dd class="card-rating">${ratingStars(item.rating)}</dd></div><div class="detail-data"><dt>加入日期</dt><dd>${formatDate(item.createdAt)}</dd></div><div class="detail-data"><dt>最後更新</dt><dd>${formatDate(item.updatedAt)}</dd></div></dl><div class="detail-notes"><span class="detail-label">NOTES</span><p>${escapeHtml(item.notes || '還沒有備註。')}</p></div><div class="drawer-actions"><a class="primary-button" href="${escapeHtml(item.sourceUrl)}" target="_blank" rel="noreferrer" style="display:grid;place-items:center;text-decoration:none">開啟來源 ↗</a><button class="secondary-button" id="edit-item">編輯</button><button class="danger-button" id="delete-item">刪除收藏</button></div>`;
+  return `<div class="detail-image">${image}</div><div class="detail-topline"><span class="card-category">${escapeHtml(displayMediaType(item))}</span><span class="status-pill ${statusClass(item.status)}">${escapeHtml(item.status)}</span></div><div class="detail-title">${escapeHtml(item.title)}</div><div class="detail-tags">${tagsOf(item).map((tag) => `<span class="card-tag">#${escapeHtml(tag)}</span>`).join('') || '<span class="muted-label">尚未加上標籤</span>'}</div><dl class="detail-grid"><div class="detail-data"><dt>影音類型</dt><dd>${escapeHtml(displayMediaType(item))}</dd></div><div class="detail-data"><dt>評分</dt><dd class="card-rating">${ratingStars(item.rating)}</dd></div><div class="detail-data"><dt>加入日期</dt><dd>${formatDate(item.createdAt)}</dd></div><div class="detail-data"><dt>最後更新</dt><dd>${formatDate(item.updatedAt)}</dd></div></dl><div class="detail-notes"><span class="detail-label">NOTES</span><p>${escapeHtml(item.notes || '還沒有備註。')}</p></div><div class="drawer-actions"><a class="primary-button" href="${escapeHtml(item.sourceUrl)}" target="_blank" rel="noreferrer" style="display:grid;place-items:center;text-decoration:none">開啟來源 ↗</a><button class="secondary-button" id="edit-item">編輯</button><button class="danger-button" id="delete-item">刪除收藏</button></div>`;
 }
 
 function openForm(item = null) {
@@ -303,7 +306,6 @@ function formHtml(item) {
     <div class="field"><label class="field-label" for="form-title">標題 <span>必填</span></label><input class="text-input" id="form-title" required value="${escapeHtml(item.title)}" placeholder="例如：The art of noticing" /></div>
     <div class="field"><label class="field-label" for="form-type">影音類型 <span>必填</span></label>${select('form-type', state.mediaTypes, item.mediaType)}</div>
     <div class="field"><label class="field-label" for="form-thumbnail">縮圖網址 <span>選填</span></label><input class="text-input" id="form-thumbnail" type="url" value="${escapeHtml(item.thumbnailUrl)}" placeholder="YouTube 縮圖會自動填入，也可自行修改" /></div>
-    <div class="field"><label class="field-label" for="form-category">分類</label>${select('form-category', ['未分類', ...CATEGORIES], item.category || '未分類')}</div>
     <div class="field"><label class="field-label" for="form-notes">備註</label><textarea class="textarea-input" id="form-notes" placeholder="記下為什麼收藏，或之後想回來看的地方…">${escapeHtml(item.notes)}</textarea></div>
     <div class="form-footer"><span class="required-note">* 為必要欄位</span><button class="primary-button" type="submit">${state.editing ? '儲存變更' : '加入收藏'}</button></div>
   </form>`;
@@ -318,7 +320,7 @@ async function handleFormSubmit(event) {
   try { const parsedUrl = new URL(sourceUrl); if (!['http:', 'https:'].includes(parsedUrl.protocol)) throw new Error('protocol'); } catch { showToast('請輸入有效的 HTTP(S) 來源連結。', 'error'); return; }
   if (!title) { showToast('請填寫影音標題。', 'error'); return; }
   const now = new Date().toISOString();
-  const item = { id: state.selectedItem?.id || `mv-${Date.now()}`, title, mediaType: $('#form-type').value, sourceUrl, thumbnailUrl: $('#form-thumbnail').value.trim(), category: $('#form-category').value === '未分類' ? '' : $('#form-category').value, tags: state.selectedItem?.tags || '', status: state.selectedItem?.status || '待觀看', rating: Number(state.selectedItem?.rating) || 0, notes: $('#form-notes').value.trim(), createdAt: state.selectedItem?.createdAt || now, updatedAt: now };
+  const item = { id: state.selectedItem?.id || `mv-${Date.now()}`, title, mediaType: $('#form-type').value, sourceUrl, thumbnailUrl: $('#form-thumbnail').value.trim(), category: state.selectedItem?.category || '', tags: state.selectedItem?.tags || '', status: state.selectedItem?.status || '待觀看', rating: Number(state.selectedItem?.rating) || 0, notes: $('#form-notes').value.trim(), createdAt: state.selectedItem?.createdAt || now, updatedAt: now };
   const submitButton = event.currentTarget.querySelector('button[type="submit"]');
   submitButton.disabled = true; submitButton.textContent = '儲存中…';
   try {
