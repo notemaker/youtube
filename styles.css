@@ -144,6 +144,13 @@ kbd { border: 1px solid var(--line); border-radius: 5px; color: var(--muted); fo
 .media-card-image { height: 150px; background: var(--ink-soft); position: relative; overflow: hidden; }
 .media-card-image img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform .35s, filter .35s; }
 .media-card:hover .media-card-image img { transform: scale(1.04); filter: saturate(1.1); }
+.inline-player, .player-poster, .inline-video, .inline-player iframe { width: 100%; height: 100%; display: block; }
+.player-poster { position: relative; }
+.inline-player iframe, .inline-video { border: 0; object-fit: contain; background: #081512; }
+.player-launch { position: absolute; z-index: 2; inset: 0; display: grid; place-content: center; gap: 5px; border: 0; background: rgba(16,37,34,.28); color: var(--white); cursor: pointer; }
+.player-launch span { display: grid; place-items: center; width: 48px; height: 48px; margin: auto; border-radius: 50%; background: var(--orange); box-shadow: 0 6px 18px rgba(16,37,34,.25); font-size: 19px; padding-left: 3px; }
+.player-launch em { font-style: normal; font-size: 11px; font-weight: 700; text-shadow: 0 1px 4px rgba(0,0,0,.45); }
+.player-launch:hover { background: rgba(16,37,34,.12); }
 .media-card-image::after { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(16,37,34,0.03) 35%, rgba(16,37,34,.45)); pointer-events: none; }
 .image-placeholder { width: 100%; height: 100%; display: grid; place-items: center; font-family: "Noto Serif TC", serif; font-size: 39px; color: rgba(245,240,232,.8); background: radial-gradient(circle at 20% 25%, #466b61, var(--ink)); }
 .media-type-pill, .status-pill { position: absolute; z-index: 1; top: 12px; left: 12px; border-radius: 50px; padding: 5px 8px; font-size: 10px; font-weight: 700; line-height: 1; }

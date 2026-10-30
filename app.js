@@ -207,8 +207,19 @@ function renderList() {
   }
   $('#media-grid').innerHTML = state.filteredItems.map(mediaCardHtml).join('');
   $$('.media-card').forEach((card) => card.addEventListener('click', (event) => {
-    if (event.target.closest('a, button')) return;
+    if (event.target.closest('a, button, video, iframe')) return;
     openDetail(card.dataset.id);
+  }));
+  $$('.player-launch').forEach((button) => button.addEventListener('click', (event) => {
+    event.stopPropagation();
+    const player = button.closest('.inline-player');
+    if (!player) return;
+    const kind = button.dataset.playerKind;
+    const url = button.dataset.playerUrl;
+    const embedUrl = kind === 'youtube'
+      ? `https://www.youtube.com/embed/${encodeURIComponent(url)}?autoplay=1&rel=0`
+      : `https://player.vimeo.com/video/${encodeURIComponent(url)}?autoplay=1`;
+    player.innerHTML = `<iframe src="${embedUrl}" title="影音播放器" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen></iframe>`;
   }));
   $$('.card-edit').forEach((button) => button.addEventListener('click', (event) => {
     event.stopPropagation();
@@ -226,7 +237,29 @@ function mediaCardHtml(item) {
   const tags = tagsOf(item);
   const image = item.thumbnailUrl ? `<img src="${escapeHtml(item.thumbnailUrl)}" alt="${escapeHtml(item.title)} 縮圖" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('div'), {className:'image-placeholder', textContent:'▶'}))" />` : '<div class="image-placeholder">▶</div>';
   const mediaType = displayMediaType(item);
-  return `<article class="media-card" data-id="${escapeHtml(item.id)}"><div class="media-card-image">${image}<span class="media-type-pill">${escapeHtml(mediaType)}</span><span class="status-pill ${statusClass(item.status)}">${escapeHtml(item.status || '待觀看')}</span></div><div class="media-card-body"><div class="card-category">${escapeHtml(mediaType)}</div><h3>${escapeHtml(item.title)}</h3><div class="card-meta"><div class="card-tags">${tags.slice(0, 2).map((tag) => `<span class="card-tag">#${escapeHtml(tag)}</span>`).join('')}</div>${item.rating ? `<span class="card-rating">${ratingStars(item.rating)}</span>` : ''}</div><div class="card-footer"><span class="card-time">更新於 ${formatDate(item.updatedAt)}</span><div class="card-actions"><a class="card-open" href="${escapeHtml(item.sourceUrl)}" target="_blank" rel="noreferrer">開啟來源 ↗</a><button class="card-action card-edit" type="button" data-id="${escapeHtml(item.id)}">修改</button><button class="card-action delete card-delete" type="button" data-id="${escapeHtml(item.id)}">刪除</button></div></div></div></article>`;
+  return `<article class="media-card" data-id="${escapeHtml(item.id)}"><div class="media-card-image">${playerHtml(item, image)}<span class="media-type-pill">${escapeHtml(mediaType)}</span><span class="status-pill ${statusClass(item.status)}">${escapeHtml(item.status || '待觀看')}</span></div><div class="media-card-body"><div class="card-category">${escapeHtml(mediaType)}</div><h3>${escapeHtml(item.title)}</h3><div class="card-meta"><div class="card-tags">${tags.slice(0, 2).map((tag) => `<span class="card-tag">#${escapeHtml(tag)}</span>`).join('')}</div>${item.rating ? `<span class="card-rating">${ratingStars(item.rating)}</span>` : ''}</div><div class="card-footer"><span class="card-time">更新於 ${formatDate(item.updatedAt)}</span><div class="card-actions"><a class="card-open" href="${escapeHtml(item.sourceUrl)}" target="_blank" rel="noreferrer">開啟來源 ↗</a><button class="card-action card-edit" type="button" data-id="${escapeHtml(item.id)}">修改</button><button class="card-action delete card-delete" type="button" data-id="${escapeHtml(item.id)}">刪除</button></div></div></div></article>`;
+}
+
+function playerInfo(url) {
+  const value = String(url || '').trim();
+  const youtubeId = youtubeVideoId(value);
+  if (youtubeId) return { kind: 'youtube', id: youtubeId };
+  try {
+    const parsed = new URL(value);
+    if (parsed.hostname.toLowerCase().endsWith('vimeo.com')) {
+      const id = parsed.pathname.split('/').filter(Boolean).pop();
+      if (/^\d+$/.test(id || '')) return { kind: 'vimeo', id };
+    }
+    if (/\.(mp4|webm|ogg|ogv)(?:$|[?#])/i.test(parsed.pathname + parsed.search)) return { kind: 'direct', url: value };
+  } catch { /* fallback to the normal source link */ }
+  return null;
+}
+
+function playerHtml(item, image) {
+  const info = playerInfo(item.sourceUrl);
+  if (!info) return image;
+  if (info.kind === 'direct') return `<video class="inline-video" controls preload="metadata" poster="${escapeHtml(item.thumbnailUrl || '')}"><source src="${escapeHtml(info.url)}" /></video>`;
+  return `<div class="inline-player"><div class="player-poster">${image}<button class="player-launch" type="button" data-player-kind="${info.kind}" data-player-url="${escapeHtml(info.id)}" aria-label="播放${escapeHtml(item.title)}"><span>▶</span><em>播放</em></button></div></div>`;
 }
 
 function displayMediaType(item) { return item.mediaType && state.mediaTypes.includes(item.mediaType) ? item.mediaType : UNCLASSIFIED_TYPE; }
