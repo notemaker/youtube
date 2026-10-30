@@ -202,15 +202,25 @@ function renderList() {
   }
   $('#media-grid').innerHTML = state.filteredItems.map(mediaCardHtml).join('');
   $$('.media-card').forEach((card) => card.addEventListener('click', (event) => {
-    if (event.target.closest('a')) return;
+    if (event.target.closest('a, button')) return;
     openDetail(card.dataset.id);
+  }));
+  $$('.card-edit').forEach((button) => button.addEventListener('click', (event) => {
+    event.stopPropagation();
+    const item = state.items.find((entry) => entry.id === button.dataset.id);
+    if (item) openForm(item);
+  }));
+  $$('.card-delete').forEach((button) => button.addEventListener('click', (event) => {
+    event.stopPropagation();
+    const item = state.items.find((entry) => entry.id === button.dataset.id);
+    if (item) confirmDelete(item);
   }));
 }
 
 function mediaCardHtml(item) {
   const tags = tagsOf(item);
   const image = item.thumbnailUrl ? `<img src="${escapeHtml(item.thumbnailUrl)}" alt="${escapeHtml(item.title)} 縮圖" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('div'), {className:'image-placeholder', textContent:'▶'}))" />` : '<div class="image-placeholder">▶</div>';
-  return `<article class="media-card" data-id="${escapeHtml(item.id)}"><div class="media-card-image">${image}<span class="media-type-pill">${escapeHtml(item.mediaType || '其他')}</span><span class="status-pill ${statusClass(item.status)}">${escapeHtml(item.status || '待觀看')}</span></div><div class="media-card-body"><div class="card-category">${escapeHtml(item.category || '未分類')}</div><h3>${escapeHtml(item.title)}</h3><div class="card-meta"><div class="card-tags">${tags.slice(0, 2).map((tag) => `<span class="card-tag">#${escapeHtml(tag)}</span>`).join('')}</div><span class="card-rating">${ratingStars(item.rating)}</span></div><div class="card-footer"><span class="card-time">更新於 ${formatDate(item.updatedAt)}</span><a class="card-open" href="${escapeHtml(item.sourceUrl)}" target="_blank" rel="noreferrer">開啟來源 ↗</a></div></div></article>`;
+  return `<article class="media-card" data-id="${escapeHtml(item.id)}"><div class="media-card-image">${image}<span class="media-type-pill">${escapeHtml(item.mediaType || '其他')}</span><span class="status-pill ${statusClass(item.status)}">${escapeHtml(item.status || '待觀看')}</span></div><div class="media-card-body"><div class="card-category">${escapeHtml(item.category || '未分類')}</div><h3>${escapeHtml(item.title)}</h3><div class="card-meta"><div class="card-tags">${tags.slice(0, 2).map((tag) => `<span class="card-tag">#${escapeHtml(tag)}</span>`).join('')}</div><span class="card-rating">${ratingStars(item.rating)}</span></div><div class="card-footer"><span class="card-time">更新於 ${formatDate(item.updatedAt)}</span><div class="card-actions"><a class="card-open" href="${escapeHtml(item.sourceUrl)}" target="_blank" rel="noreferrer">開啟來源 ↗</a><button class="card-action card-edit" type="button" data-id="${escapeHtml(item.id)}">修改</button><button class="card-action delete card-delete" type="button" data-id="${escapeHtml(item.id)}">刪除</button></div></div></div></article>`;
 }
 
 function openDetail(id) {

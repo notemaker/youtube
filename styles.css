@@ -157,8 +157,13 @@ kbd { border: 1px solid var(--line); border-radius: 5px; color: var(--muted); fo
 .card-rating { color: var(--orange-dark); white-space: nowrap; font-weight: 700; }
 .card-footer { display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--line); margin-top: 14px; padding-top: 11px; }
 .card-time { color: var(--muted); font-size: 10px; }
+.card-actions { display: flex; align-items: center; gap: 8px; }
 .card-open { color: var(--ink); font-size: 11px; font-weight: 700; text-decoration: none; }
 .card-open:hover { color: var(--orange-dark); }
+.card-action { border: 0; padding: 3px 0; background: transparent; color: var(--ink); font-size: 12px; font-weight: 700; }
+.card-action:hover { color: var(--orange-dark); text-decoration: underline; }
+.card-action.delete { color: var(--muted); }
+.card-action.delete:hover { color: #c65335; }
 .empty-state { grid-column: 1 / -1; text-align: center; padding: 65px 20px; border: 1px dashed rgba(16,37,34,.18); border-radius: var(--radius-md); }
 .empty-orb { width: 56px; height: 56px; border-radius: 50%; background: var(--sage-soft); margin: 0 auto 18px; display: grid; place-items: center; font-family: "Noto Serif TC", serif; font-size: 25px; color: var(--ink); }
 .empty-state h3 { font-family: "Noto Serif TC", serif; margin-bottom: 7px; }
@@ -293,6 +298,8 @@ kbd { border: 1px solid var(--line); border-radius: 5px; color: var(--muted); fo
   .view-caption { display: none; }
   .media-grid { grid-template-columns: 1fr; gap: 13px; }
   .media-card-image { height: 178px; }
+  .card-footer { align-items: flex-start; gap: 8px; }
+  .card-actions { flex-wrap: wrap; justify-content: flex-end; }
   .compact-hero { margin-bottom: 26px !important; }
   .settings-card { padding: 20px; border-radius: 17px; }
   .primary-settings-card { min-height: auto; }
