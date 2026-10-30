@@ -183,7 +183,7 @@ function chipHtml(label, selected, filter, value = label) { return `<button clas
 function applyFilters() {
   const query = state.query.trim().toLowerCase();
   let list = state.items.filter((item) => {
-    const haystack = [item.title, item.sourceUrl, item.category, item.tags, item.notes].join(' ').toLowerCase();
+    const haystack = [item.title, displayMediaType(item), item.sourceUrl, item.category, item.tags, item.notes].join(' ').toLowerCase();
     return (!query || haystack.includes(query)) && (!state.filters.type || displayMediaType(item) === state.filters.type);
   });
   list.sort((a, b) => {
