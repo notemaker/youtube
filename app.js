@@ -417,6 +417,10 @@ function clearFilters() { state.filters = { type: '' }; state.query = ''; $('#se
 function showToast(message, type = '', action = null) { const toast = document.createElement('div'); toast.className = `toast ${type}`; toast.append(document.createTextNode(message)); if (action) { const button = document.createElement('button'); button.className = 'toast-action'; button.textContent = action.label; button.addEventListener('click', () => { toast.remove(); action.handler(); }); toast.append(button); } $('#toast-stack').appendChild(toast); setTimeout(() => toast.remove(), 5000); }
 
 function setView(view, { syncUrl = true } = {}) {
+  if (view === 'settings' && !isAdminAuthenticated()) {
+    view = 'library';
+    window.history.replaceState({}, '', viewUrl('library'));
+  }
   $$('[data-view]').forEach((item) => item.classList.toggle('active', item.dataset.view === view));
   $('#library-view').hidden = view !== 'library';
   $('#settings-view').hidden = view !== 'settings';
@@ -434,21 +438,33 @@ function renderSettings() {
 }
 
 function requireAdmin() {
-  if (state.auth.authenticated && state.auth.user?.email?.toLowerCase() === 'notemaker@gmail.com') return true;
+  if (isAdminAuthenticated()) return true;
   showToast('請先使用 notemaker@gmail.com 登入後再進行管理操作。', 'error');
   return false;
 }
 
+function isAdminAuthenticated() {
+  return state.auth.authenticated && state.auth.user?.email?.toLowerCase() === 'notemaker@gmail.com';
+}
+
 function updateWriteControls() {
-  const canWrite = state.auth.authenticated;
+  const canWrite = isAdminAuthenticated();
   ['add-button', 'mobile-add-button'].forEach((id) => { const button = $(`#${id}`); if (button) button.hidden = !canWrite; });
+  $('#library-actions').hidden = !canWrite;
+  $('#desktop-navigation').hidden = !canWrite;
+  $('#sidebar-navigation-divider').hidden = !canWrite;
+  $('#mobile-navigation').hidden = !canWrite;
   const typeAdd = $('#add-type-button');
   if (typeAdd) typeAdd.disabled = !canWrite;
+  if (typeAdd) typeAdd.hidden = !canWrite;
+  const typeDelete = $('#delete-type-button');
+  if (typeDelete) typeDelete.hidden = !canWrite;
   renderMediaTypeSelect();
   const user = $('#auth-user');
   const login = $('#google-login');
   if (user) { user.hidden = !canWrite; user.querySelector('[data-auth-email]').textContent = state.auth.user?.email || ''; }
   if (login) login.hidden = canWrite;
+  if (!canWrite && !$('#settings-view').hidden) setView('library');
 }
 
 async function refreshAuth() {
@@ -518,6 +534,7 @@ function saveSettings() {
 function init() {
   state.settings = getSettings();
   state.mediaTypes = loadMediaTypes();
+  const requestedView = initialView();
   $('#search-input').addEventListener('input', (event) => { state.query = event.target.value; renderList(); });
   $('#add-type-button').addEventListener('click', addMediaType);
   $('#delete-type-button').addEventListener('click', () => removeMediaType(state.filters.type));
@@ -533,9 +550,13 @@ function init() {
   $('#save-settings').addEventListener('click', saveSettings);
   $('#logout-button').addEventListener('click', logout);
   document.addEventListener('keydown', (event) => { if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') { event.preventDefault(); $('#search-input').focus(); } if (event.key === 'Escape' && !$('#drawer-backdrop').hidden) closeDrawer(); });
-  setView(initialView(), { syncUrl: false });
+  setView('library', { syncUrl: false });
   initGoogleLogin();
-  refreshAuth().finally(() => refreshData(false));
+  refreshAuth().then(() => {
+    if (requestedView === 'settings' && isAdminAuthenticated()) setView('settings', { syncUrl: false });
+    else if (requestedView === 'settings') window.history.replaceState({}, '', viewUrl('library'));
+    return refreshData(false);
+  });
 }
 
 init();
