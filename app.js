@@ -4,6 +4,7 @@ const SETTINGS_KEY = 'mediavault-settings-v1';
 const DEFAULT_TYPES = ['影片', 'Podcast', '音樂', '直播', '文章／其他'];
 const UNCLASSIFIED_TYPE = '未分類';
 const TYPES_KEY = 'mediavault-types-v1';
+const GOOGLE_CLIENT_ID = '736171088462-9lgp18000mae0p30vc2kgorj2kqlq7v3.apps.googleusercontent.com';
 const STATUSES = [
   { value: '待觀看', className: 'pending' },
   { value: '觀看中', className: 'watching' },
@@ -37,7 +38,8 @@ const state = {
   filters: { type: '' },
   query: '',
   sort: 'updated',
-  settings: { mode: 'demo', apiUrl: '' }
+  settings: { mode: 'demo', apiUrl: '' },
+  auth: { authenticated: false, user: null }
 };
 
 const $ = (selector) => document.querySelector(selector);
@@ -103,7 +105,7 @@ const dataSource = {
     if (!state.settings.apiUrl) throw new Error('請先設定 Apps Script Web App URL。');
     // 使用 text/plain 讓跨來源 POST 保持 CORS simple request，避免 Apps Script Web App 的 OPTIONS 預檢被擋下。
     // doPost 仍以 e.postData.contents 解析 JSON，因此不需要修改 API payload 契約。
-    const response = await fetch(state.settings.apiUrl, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=UTF-8' }, body: JSON.stringify({ action, item, id }) });
+    const response = await fetch('/api/sheet-write', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ apiUrl: state.settings.apiUrl, payload: { action, item, id } }) });
     if (!response.ok) {
       if (response.status === 405) throw new Error('Apps Script 部署目前只允許 GET；請確認 Code.gs 包含 doPost(e)，並重新部署 Web App。');
       throw new Error(`Apps Script 回應 HTTP ${response.status}。`);
@@ -115,7 +117,7 @@ const dataSource = {
   async mutateType(action, value) {
     if (state.settings.mode === 'demo') return { value };
     if (!state.settings.apiUrl) throw new Error('請先設定 Apps Script Web App URL。');
-    const response = await fetch(state.settings.apiUrl, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=UTF-8' }, body: JSON.stringify({ action, value }) });
+    const response = await fetch('/api/sheet-write', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ apiUrl: state.settings.apiUrl, payload: { action, value } }) });
     const payload = await response.json();
     if (!response.ok || !payload.ok) throw new Error(payload.error?.message || `影音類型操作失敗（HTTP ${response.status}）。`);
     return payload.data;
@@ -143,11 +145,12 @@ function renderMediaTypeSelect() {
   if (!select) return;
   select.innerHTML = `<option value="">所有影音類型</option>${state.mediaTypes.map((value) => `<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>`).join('')}`;
   select.value = state.filters.type;
-  $('#delete-type-button').disabled = !state.filters.type || state.filters.type === UNCLASSIFIED_TYPE;
+  $('#delete-type-button').disabled = !state.auth.authenticated || !state.filters.type || state.filters.type === UNCLASSIFIED_TYPE;
   select.onchange = () => { state.filters.type = select.value; renderMediaTypeSelect(); renderList(); };
 }
 
 async function addMediaType() {
+  if (!requireAdmin()) return;
   const value = window.prompt('請輸入新的影音類型：', '線上課程')?.trim();
   if (!value) return;
   if (state.mediaTypes.some((type) => type.toLowerCase() === value.toLowerCase())) { showToast('這個影音類型已經存在。', 'error'); return; }
@@ -161,6 +164,7 @@ async function addMediaType() {
 }
 
 async function removeMediaType(value) {
+  if (!requireAdmin()) return;
   if (!value || value === UNCLASSIFIED_TYPE) { showToast('「未分類」是保留類型，不能刪除。', 'error'); return; }
   const reassignedCount = state.items.filter((item) => item.mediaType === value).length;
   const message = reassignedCount ? `刪除後，${reassignedCount} 張使用「${value}」的收藏卡會改為「${UNCLASSIFIED_TYPE}」。確定要繼續嗎？` : `確定要刪除影音類型「${value}」嗎？`;
@@ -407,6 +411,60 @@ function renderSettings() {
   $('#field-table').innerHTML = FIELD_DEFINITIONS.map(([field, description]) => `<div class="field-token"><strong>${field}</strong><span>${description}</span></div>`).join('');
 }
 
+function requireAdmin() {
+  if (state.auth.authenticated && state.auth.user?.email?.toLowerCase() === 'notemaker@gmail.com') return true;
+  showToast('請先使用 notemaker@gmail.com 登入後再進行管理操作。', 'error');
+  return false;
+}
+
+function updateWriteControls() {
+  const canWrite = state.auth.authenticated;
+  ['add-button', 'mobile-add-button'].forEach((id) => { const button = $(`#${id}`); if (button) button.hidden = !canWrite; });
+  const typeAdd = $('#add-type-button');
+  if (typeAdd) typeAdd.disabled = !canWrite;
+  renderMediaTypeSelect();
+  const user = $('#auth-user');
+  const login = $('#google-login');
+  if (user) { user.hidden = !canWrite; user.querySelector('[data-auth-email]').textContent = state.auth.user?.email || ''; }
+  if (login) login.hidden = canWrite;
+}
+
+async function refreshAuth() {
+  try {
+    const response = await fetch('/api/auth/me', { headers: { Accept: 'application/json' } });
+    const payload = await response.json();
+    state.auth = { authenticated: Boolean(payload.authenticated), user: payload.user || null };
+  } catch { state.auth = { authenticated: false, user: null }; }
+  updateWriteControls();
+}
+
+async function handleGoogleCredential(response) {
+  try {
+    const result = await fetch('/api/auth/google', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ credential: response.credential }) });
+    const payload = await result.json();
+    if (!result.ok || !payload.ok) throw new Error(payload.error || 'Google 登入失敗。');
+    state.auth = { authenticated: true, user: payload.user };
+    updateWriteControls();
+    showToast('管理者登入成功，已開啟收藏管理功能。', 'success');
+  } catch (error) { showToast(error.message, 'error'); }
+}
+
+function initGoogleLogin() {
+  if (!window.google?.accounts?.id) { setTimeout(initGoogleLogin, 250); return; }
+  window.google.accounts.id.initialize({ client_id: GOOGLE_CLIENT_ID, callback: handleGoogleCredential, auto_select: false });
+  $('#google-login').addEventListener('click', () => {
+    if (!window.google?.accounts?.id) { showToast('Google 登入服務載入中，請稍後再試。', 'error'); return; }
+    window.google.accounts.id.prompt();
+  });
+}
+
+async function logout() {
+  await fetch('/api/auth/logout', { method: 'POST' });
+  state.auth = { authenticated: false, user: null };
+  updateWriteControls();
+  showToast('已登出，現在可以瀏覽與播放影音。', 'success');
+}
+
 async function testConnection() {
   const url = $('#api-url').value.trim();
   const result = $('#connection-result');
@@ -437,8 +495,8 @@ function init() {
   $('#search-input').addEventListener('input', (event) => { state.query = event.target.value; renderList(); });
   $('#add-type-button').addEventListener('click', addMediaType);
   $('#delete-type-button').addEventListener('click', () => removeMediaType(state.filters.type));
-  $('#add-button').addEventListener('click', () => openForm());
-  $('#mobile-add-button').addEventListener('click', () => openForm());
+  $('#add-button').addEventListener('click', () => { if (requireAdmin()) openForm(); });
+  $('#mobile-add-button').addEventListener('click', () => { if (requireAdmin()) openForm(); });
   $('#refresh-button').addEventListener('click', () => refreshData(true));
   $('#close-drawer').addEventListener('click', closeDrawer);
   $('#drawer-backdrop').addEventListener('click', closeDrawer);
@@ -447,9 +505,11 @@ function init() {
   $$('.mode-button').forEach((button) => button.addEventListener('click', () => { $$('.mode-button').forEach((entry) => entry.classList.remove('active')); button.classList.add('active'); }));
   $('#test-connection').addEventListener('click', testConnection);
   $('#save-settings').addEventListener('click', saveSettings);
+  $('#logout-button').addEventListener('click', logout);
   document.addEventListener('keydown', (event) => { if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') { event.preventDefault(); $('#search-input').focus(); } if (event.key === 'Escape' && !$('#drawer-backdrop').hidden) closeDrawer(); });
   setView(window.location.pathname === '/settings' ? 'settings' : 'library', { syncUrl: false });
-  refreshData(false);
+  initGoogleLogin();
+  refreshAuth().finally(() => refreshData(false));
 }
 
 init();

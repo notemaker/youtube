@@ -9,7 +9,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700&family=Noto+Serif+TC:wght@500;600;700;800&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="styles.css?v=20261030-1306" />
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <link rel="stylesheet" href="styles.css?v=20261030-1343" />
   </head>
   <body>
     <div class="app-shell">
@@ -53,6 +54,10 @@
           <div class="topbar-context"><span class="context-dot"></span><span>PERSONAL ARCHIVE</span></div>
           <div class="topbar-actions">
             <button class="icon-button" id="refresh-button" title="重新整理" aria-label="重新整理">↻</button>
+            <div class="auth-area">
+              <button id="google-login" class="auth-login" type="button">登入</button>
+              <div id="auth-user" class="auth-user" hidden><span class="auth-email" data-auth-email></span><button class="auth-logout" id="logout-button" type="button">登出</button></div>
+            </div>
           </div>
         </header>
 
@@ -113,6 +118,6 @@
 
     <button class="mobile-add-fab" id="mobile-add-button" aria-label="新增收藏"><span>＋</span> 新增</button>
     <div class="toast-stack" id="toast-stack" aria-live="polite"></div>
-    <script type="module" src="app.js?v=20261030-1306"></script>
+    <script type="module" src="app.js?v=20261030-1343"></script>
   </body>
 </html>
