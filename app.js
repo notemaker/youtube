@@ -2,6 +2,7 @@ const STORAGE_KEY = 'mediavault-items-v1';
 const SETTINGS_KEY = 'mediavault-settings-v1';
 
 const DEFAULT_TYPES = ['影片', 'Podcast', '音樂', '直播', '文章／其他'];
+const UNCLASSIFIED_TYPE = '未分類';
 const TYPES_KEY = 'mediavault-types-v1';
 const STATUSES = [
   { value: '待觀看', className: 'pending' },
@@ -142,6 +143,7 @@ function renderMediaTypeSelect() {
   if (!select) return;
   select.innerHTML = `<option value="">所有影音類型</option>${state.mediaTypes.map((value) => `<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>`).join('')}`;
   select.value = state.filters.type;
+  $('#delete-type-button').disabled = !state.filters.type || state.filters.type === UNCLASSIFIED_TYPE;
   select.onchange = () => { state.filters.type = select.value; renderMediaTypeSelect(); renderList(); };
 }
 
@@ -159,16 +161,20 @@ async function addMediaType() {
 }
 
 async function removeMediaType(value) {
-  if (state.mediaTypes.length <= 1) { showToast('至少要保留一個影音類型。', 'error'); return; }
-  if (state.items.some((item) => item.mediaType === value)) { showToast(`「${value}」已有收藏使用，暫時無法刪除。`, 'error'); return; }
-  if (!window.confirm(`確定要刪除影音類型「${value}」嗎？`)) return;
+  if (!value || value === UNCLASSIFIED_TYPE) { showToast('「未分類」是保留類型，不能刪除。', 'error'); return; }
+  const reassignedCount = state.items.filter((item) => item.mediaType === value).length;
+  const message = reassignedCount ? `刪除後，${reassignedCount} 張使用「${value}」的收藏卡會改為「${UNCLASSIFIED_TYPE}」。確定要繼續嗎？` : `確定要刪除影音類型「${value}」嗎？`;
+  if (!window.confirm(message)) return;
   try {
-    await dataSource.mutateType('deleteType', value);
+    const result = await dataSource.mutateType('deleteType', value);
+    state.items = state.items.map((item) => item.mediaType === value ? { ...item, mediaType: UNCLASSIFIED_TYPE } : item);
+    if (state.settings.mode === 'demo') saveLocalItems(state.items);
     state.mediaTypes = state.mediaTypes.filter((type) => type !== value);
+    if (reassignedCount && !state.mediaTypes.includes(UNCLASSIFIED_TYPE)) state.mediaTypes = [...state.mediaTypes, UNCLASSIFIED_TYPE];
     if (state.filters.type === value) state.filters.type = '';
     saveMediaTypes(state.mediaTypes);
     renderMediaTypeSelect(); renderList();
-    showToast(`已刪除影音類型「${value}」。`, 'success');
+    showToast(`已刪除影音類型「${value}」${result?.reassigned ? `，${result.reassigned} 張收藏已改為「${UNCLASSIFIED_TYPE}」` : ''}。`, 'success');
   } catch (error) { showToast(error.message, 'error'); }
 }
 
@@ -396,6 +402,7 @@ function init() {
   state.mediaTypes = loadMediaTypes();
   $('#search-input').addEventListener('input', (event) => { state.query = event.target.value; renderList(); });
   $('#add-type-button').addEventListener('click', addMediaType);
+  $('#delete-type-button').addEventListener('click', () => removeMediaType(state.filters.type));
   $('#add-button').addEventListener('click', () => openForm());
   $('#mobile-add-button').addEventListener('click', () => openForm());
   $('#refresh-button').addEventListener('click', () => refreshData(true));

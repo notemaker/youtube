@@ -101,6 +101,8 @@ h2 { font-family: "Noto Serif TC", serif; font-size: 23px; letter-spacing: -.03e
 .type-search-select { max-width: 145px; min-height: 34px; border: 0; border-left: 1px solid var(--line); outline: 0; background: transparent; color: var(--ink-soft); padding-left: 10px; font-size: 14px; font-weight: 700; }
 .search-type-action { width: 30px; height: 30px; flex: 0 0 30px; border: 0; border-radius: 50%; background: var(--sage-soft); color: var(--ink); font-size: 18px; line-height: 1; }
 .search-type-action:hover:not(:disabled) { background: var(--sage); }
+.search-type-action.type-delete { width: auto; min-width: 45px; border-radius: 7px; padding: 0 7px; color: #b74c32; font-size: 12px; font-weight: 700; }
+.search-type-action.type-delete:hover:not(:disabled) { background: #ffe2d6; }
 .search-type-action.remove { color: var(--muted); background: transparent; font-size: 22px; }
 .search-type-action.remove:hover:not(:disabled) { background: #ffe2d6; color: var(--orange-dark); }
 .search-type-action:disabled { opacity: .3; cursor: not-allowed; }
