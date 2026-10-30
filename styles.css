@@ -31,8 +31,8 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .app-shell { min-height: 100vh; display: grid; grid-template-columns: 244px minmax(0, 1fr); }
 .sidebar { background: var(--ink); color: var(--paper); padding: 32px 24px 25px; display: flex; flex-direction: column; min-height: 100vh; position: sticky; top: 0; height: 100vh; }
 .brand-lockup { display: flex; align-items: center; gap: 12px; }
-.brand-avatar { width: 39px; height: 39px; flex: 0 0 39px; border: 1px solid rgba(245,240,232,0.38); border-radius: 50%; object-fit: cover; object-position: center; background: var(--paper); }
-.brand-avatar.small { width: 30px; height: 30px; flex-basis: 30px; border-color: var(--line); }
+.brand-avatar { width: 45px; height: 45px; flex: 0 0 45px; border: 1px solid rgba(245,240,232,0.38); border-radius: 50%; object-fit: cover; object-position: center; background: var(--paper); }
+.brand-avatar.small { width: 36px; height: 36px; flex-basis: 36px; border-color: var(--line); }
 .brand-mark { position: relative; width: 34px; height: 34px; border: 1px solid rgba(245,240,232,0.4); border-radius: 9px; display: flex; align-items: center; justify-content: center; gap: 3px; transform: rotate(-7deg); }
 .brand-mark span { display: block; width: 5px; height: 14px; border-radius: 5px; background: var(--orange); }
 .brand-mark span:last-child { height: 21px; background: var(--sage); }

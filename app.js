@@ -130,7 +130,7 @@ function formatDate(dateValue) {
 
 function statusClass(status) { return STATUSES.find((entry) => entry.value === status)?.className || 'pending'; }
 function tagsOf(item) { return String(item.tags || '').split(',').map((tag) => tag.trim()).filter(Boolean); }
-function ratingStars(rating) { return rating ? `${'★'.repeat(Math.floor(Number(rating)))}${Number(rating) % 1 ? '½' : ''}` : '未評分'; }
+function ratingStars(rating) { return rating ? `${'★'.repeat(Math.floor(Number(rating)))}${Number(rating) % 1 ? '½' : ''}` : ''; }
 
 function renderStats() {
   const total = state.items.length;
@@ -142,7 +142,6 @@ function renderMediaTypeSelect() {
   if (!select) return;
   select.innerHTML = `<option value="">所有影音類型</option>${state.mediaTypes.map((value) => `<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>`).join('')}`;
   select.value = state.filters.type;
-  $('#remove-type-button').disabled = !state.filters.type;
   select.onchange = () => { state.filters.type = select.value; renderMediaTypeSelect(); renderList(); };
 }
 
@@ -220,7 +219,7 @@ function renderList() {
 function mediaCardHtml(item) {
   const tags = tagsOf(item);
   const image = item.thumbnailUrl ? `<img src="${escapeHtml(item.thumbnailUrl)}" alt="${escapeHtml(item.title)} 縮圖" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('div'), {className:'image-placeholder', textContent:'▶'}))" />` : '<div class="image-placeholder">▶</div>';
-  return `<article class="media-card" data-id="${escapeHtml(item.id)}"><div class="media-card-image">${image}<span class="media-type-pill">${escapeHtml(item.mediaType || '其他')}</span><span class="status-pill ${statusClass(item.status)}">${escapeHtml(item.status || '待觀看')}</span></div><div class="media-card-body"><div class="card-category">${escapeHtml(item.category || '未分類')}</div><h3>${escapeHtml(item.title)}</h3><div class="card-meta"><div class="card-tags">${tags.slice(0, 2).map((tag) => `<span class="card-tag">#${escapeHtml(tag)}</span>`).join('')}</div><span class="card-rating">${ratingStars(item.rating)}</span></div><div class="card-footer"><span class="card-time">更新於 ${formatDate(item.updatedAt)}</span><div class="card-actions"><a class="card-open" href="${escapeHtml(item.sourceUrl)}" target="_blank" rel="noreferrer">開啟來源 ↗</a><button class="card-action card-edit" type="button" data-id="${escapeHtml(item.id)}">修改</button><button class="card-action delete card-delete" type="button" data-id="${escapeHtml(item.id)}">刪除</button></div></div></div></article>`;
+  return `<article class="media-card" data-id="${escapeHtml(item.id)}"><div class="media-card-image">${image}<span class="media-type-pill">${escapeHtml(item.mediaType || '其他')}</span><span class="status-pill ${statusClass(item.status)}">${escapeHtml(item.status || '待觀看')}</span></div><div class="media-card-body"><div class="card-category">${escapeHtml(item.category || '未分類')}</div><h3>${escapeHtml(item.title)}</h3><div class="card-meta"><div class="card-tags">${tags.slice(0, 2).map((tag) => `<span class="card-tag">#${escapeHtml(tag)}</span>`).join('')}</div>${item.rating ? `<span class="card-rating">${ratingStars(item.rating)}</span>` : ''}</div><div class="card-footer"><span class="card-time">更新於 ${formatDate(item.updatedAt)}</span><div class="card-actions"><a class="card-open" href="${escapeHtml(item.sourceUrl)}" target="_blank" rel="noreferrer">開啟來源 ↗</a><button class="card-action card-edit" type="button" data-id="${escapeHtml(item.id)}">修改</button><button class="card-action delete card-delete" type="button" data-id="${escapeHtml(item.id)}">刪除</button></div></div></div></article>`;
 }
 
 function openDetail(id) {
@@ -397,7 +396,6 @@ function init() {
   state.mediaTypes = loadMediaTypes();
   $('#search-input').addEventListener('input', (event) => { state.query = event.target.value; renderList(); });
   $('#add-type-button').addEventListener('click', addMediaType);
-  $('#remove-type-button').addEventListener('click', () => { if (state.filters.type) removeMediaType(state.filters.type); });
   $('#add-button').addEventListener('click', () => openForm());
   $('#mobile-add-button').addEventListener('click', () => openForm());
   $('#refresh-button').addEventListener('click', () => refreshData(true));

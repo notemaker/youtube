@@ -9,7 +9,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700&family=Noto+Serif+TC:wght@500;600;700;800&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="styles.css?v=20261030-1105" />
+    <link rel="stylesheet" href="styles.css?v=20261030-1115" />
   </head>
   <body>
     <div class="app-shell">
@@ -59,7 +59,6 @@
         <section id="library-view" class="view-panel">
           <div class="hero-row">
             <div>
-              <div class="section-kicker">COLLECTION / 2026</div>
               <h1>今天，想看什麼？</h1>
               <p class="hero-copy">先收進來，等有空再看。你的影音靈感，都在這裡排好。</p>
             </div>
@@ -72,12 +71,11 @@
               <input id="search-input" type="search" placeholder="搜尋影音類型" autocomplete="off" />
               <select id="type-search-select" class="type-search-select" aria-label="影音類型"></select>
               <button class="search-type-action" id="add-type-button" type="button" title="新增影音類型" aria-label="新增影音類型">＋</button>
-              <button class="search-type-action remove" id="remove-type-button" type="button" title="刪除目前影音類型" aria-label="刪除目前影音類型">×</button>
               <kbd>⌘ K</kbd>
             </label>
           </div>
 
-          <div class="result-heading"><div><span class="section-kicker">YOUR SHELF</span><h2>收藏清單 <span id="result-count">0</span></h2></div><div class="view-caption" id="view-caption">示範資料 · 即時篩選</div></div>
+          <div class="result-heading"><div><h2>收藏清單 <span id="result-count">0</span></h2></div><div class="view-caption" id="view-caption">示範資料 · 即時篩選</div></div>
           <div class="media-grid" id="media-grid" aria-live="polite"></div>
         </section>
 
@@ -114,6 +112,6 @@
 
     <button class="mobile-add-fab" id="mobile-add-button" aria-label="新增收藏"><span>＋</span> 新增</button>
     <div class="toast-stack" id="toast-stack" aria-live="polite"></div>
-    <script type="module" src="app.js?v=20261030-1105"></script>
+    <script type="module" src="app.js?v=20261030-1115"></script>
   </body>
 </html>
