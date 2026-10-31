@@ -66,6 +66,8 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .topbar-actions { display: flex; align-items: center; gap: 10px; }
 .auth-area { display: flex; align-items: center; min-height: 38px; }
 .auth-area [hidden] { display: none !important; }
+.google-login-fallback { min-height: 40px; }
+.google-login-fallback > div { display: flex; }
 .auth-login { border: 1px solid var(--line); border-radius: 999px; min-width: 64px; padding: 8px 15px; background: var(--white); color: var(--ink); font-size: 13px; font-weight: 700; cursor: pointer; }
 .auth-login:hover { border-color: var(--orange); background: var(--paper-2); }
 .auth-user { display: flex; align-items: center; gap: 8px; }

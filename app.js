@@ -39,13 +39,16 @@ const state = {
   query: '',
   sort: 'updated',
   settings: { mode: 'demo', apiUrl: '' },
-  auth: { authenticated: false, user: null }
+  auth: { authenticated: false, user: null, sessionToken: '', expiresAt: 0, fallbackVisible: false }
 };
 
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
 const IS_GITHUB_PAGES = location.hostname === 'notemaker.github.io';
 const AUTH_API_ORIGIN = IS_GITHUB_PAGES ? 'https://mediavault-2o7cw76y.manus.space' : '';
+let googleLoginInitialized = false;
+let googleLoginClickBound = false;
+let authExpiryTimer = 0;
 
 function authApiUrl(path) { return `${AUTH_API_ORIGIN}${path}`; }
 function authFetch(path, options = {}) {
@@ -70,6 +73,15 @@ async function readApiJson(response, label = '登入服務') {
 
 function escapeHtml(value = '') {
   return String(value).replace(/[&<>'"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#039;', '"': '&quot;' }[char]));
+}
+
+function safeHttpUrl(value) {
+  try {
+    const url = new URL(String(value || '').trim());
+    return ['http:', 'https:'].includes(url.protocol) ? url.href : '';
+  } catch {
+    return '';
+  }
 }
 
 function getSettings() {
@@ -221,9 +233,12 @@ function renderList() {
   $('#result-count').textContent = state.filteredItems.length;
   $('#view-caption').textContent = state.settings.mode === 'demo' ? '示範資料 · 即時篩選' : 'Google Sheet · 即時同步';
   if (!state.filteredItems.length) {
-    $('#media-grid').innerHTML = `<div class="empty-state"><div class="empty-orb">⌕</div><h3>${state.items.length ? '找不到符合的收藏' : '你的收藏架還是空的'}</h3><p>${state.items.length ? '試試調整搜尋字詞或清除篩選條件。' : '先放進第一筆影音，讓靈感有一個回來的地方。'}</p>${state.items.length ? '<button class="secondary-button" id="empty-clear">清除篩選</button>' : '<button class="primary-button" id="empty-add">新增第一筆</button>'}</div>`;
+    const emptyAction = state.items.length
+      ? '<button class="secondary-button" id="empty-clear">清除篩選</button>'
+      : (isAdminAuthenticated() ? '<button class="primary-button" id="empty-add">新增第一筆</button>' : '');
+    $('#media-grid').innerHTML = `<div class="empty-state"><div class="empty-orb">⌕</div><h3>${state.items.length ? '找不到符合的收藏' : '你的收藏架還是空的'}</h3><p>${state.items.length ? '試試調整搜尋字詞或清除篩選條件。' : '先放進第一筆影音，讓靈感有一個回來的地方。'}</p>${emptyAction}</div>`;
     $('#empty-clear')?.addEventListener('click', clearFilters);
-    $('#empty-add')?.addEventListener('click', () => openForm());
+    $('#empty-add')?.addEventListener('click', () => { if (requireAdmin()) openForm(); });
     return;
   }
   $('#media-grid').innerHTML = state.filteredItems.map(mediaCardHtml).join('');
@@ -245,7 +260,7 @@ function renderList() {
   $$('.card-edit').forEach((button) => button.addEventListener('click', (event) => {
     event.stopPropagation();
     const item = state.items.find((entry) => entry.id === button.dataset.id);
-    if (item) openForm(item);
+    if (item && requireAdmin()) openForm(item);
   }));
   $$('.card-delete').forEach((button) => button.addEventListener('click', (event) => {
     event.stopPropagation();
@@ -257,11 +272,19 @@ function renderList() {
 function mediaCardHtml(item) {
   const tags = tagsOf(item);
   const image = item.thumbnailUrl ? `<img src="${escapeHtml(item.thumbnailUrl)}" alt="${escapeHtml(item.title)} 縮圖" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('div'), {className:'image-placeholder', textContent:'▶'}))" />` : '<div class="image-placeholder">▶</div>';
-  return `<article class="media-card" data-id="${escapeHtml(item.id)}"><div class="media-card-image">${playerHtml(item, image)}<span class="media-type-pill">${escapeHtml(displayMediaType(item))}</span></div><div class="media-card-body"><h3>${escapeHtml(item.title)}</h3><div class="card-meta"><div class="card-tags">${tags.slice(0, 2).map((tag) => `<span class="card-tag">#${escapeHtml(tag)}</span>`).join('')}</div>${item.rating ? `<span class="card-rating">${ratingStars(item.rating)}</span>` : ''}</div><div class="card-footer"><span class="card-time">更新於 ${formatDate(item.updatedAt)}</span><div class="card-actions"><a class="card-open" href="${escapeHtml(item.sourceUrl)}" target="_blank" rel="noreferrer">開啟來源 ↗</a><button class="card-action card-edit" type="button" data-id="${escapeHtml(item.id)}">修改</button><button class="card-action delete card-delete" type="button" data-id="${escapeHtml(item.id)}">刪除</button></div></div></div></article>`;
+  const sourceUrl = safeHttpUrl(item.sourceUrl);
+  const sourceLink = sourceUrl
+    ? `<a class="card-open" href="${escapeHtml(sourceUrl)}" target="_blank" rel="noreferrer">開啟來源 ↗</a>`
+    : '<span class="card-open" aria-disabled="true">來源無效</span>';
+  const adminActions = isAdminAuthenticated()
+    ? `<button class="card-action card-edit" type="button" data-id="${escapeHtml(item.id)}">修改</button><button class="card-action delete card-delete" type="button" data-id="${escapeHtml(item.id)}">刪除</button>`
+    : '';
+  return `<article class="media-card" data-id="${escapeHtml(item.id)}"><div class="media-card-image">${playerHtml(item, image)}<span class="media-type-pill">${escapeHtml(displayMediaType(item))}</span></div><div class="media-card-body"><h3>${escapeHtml(item.title)}</h3><div class="card-meta"><div class="card-tags">${tags.slice(0, 2).map((tag) => `<span class="card-tag">#${escapeHtml(tag)}</span>`).join('')}</div>${item.rating ? `<span class="card-rating">${ratingStars(item.rating)}</span>` : ''}</div><div class="card-footer"><span class="card-time">更新於 ${formatDate(item.updatedAt)}</span><div class="card-actions">${sourceLink}${adminActions}</div></div></div></article>`;
 }
 
 function playerInfo(url) {
-  const value = String(url || '').trim();
+  const value = safeHttpUrl(url);
+  if (!value) return null;
   const youtubeId = youtubeVideoId(value);
   if (youtubeId) return { kind: 'youtube', id: youtubeId };
   try {
@@ -292,16 +315,24 @@ function openDetail(id) {
   $('#drawer-title').textContent = '收藏詳情';
   $('#drawer-scroll').innerHTML = detailHtml(item);
   showDrawer();
-  $('#edit-item').addEventListener('click', () => openForm(item));
-  $('#delete-item').addEventListener('click', () => confirmDelete(item));
+  $('#edit-item')?.addEventListener('click', () => { if (requireAdmin()) openForm(item); });
+  $('#delete-item')?.addEventListener('click', () => confirmDelete(item));
 }
 
 function detailHtml(item) {
   const image = item.thumbnailUrl ? `<img src="${escapeHtml(item.thumbnailUrl)}" alt="${escapeHtml(item.title)} 縮圖" onerror="this.replaceWith(Object.assign(document.createElement('div'), {className:'image-placeholder', textContent:'▶'}))" />` : '<div class="image-placeholder">▶</div>';
-  return `<div class="detail-image">${image}</div><div class="detail-topline"><span class="card-category">${escapeHtml(displayMediaType(item))}</span><span class="status-pill ${statusClass(item.status)}">${escapeHtml(item.status)}</span></div><div class="detail-title">${escapeHtml(item.title)}</div><div class="detail-tags">${tagsOf(item).map((tag) => `<span class="card-tag">#${escapeHtml(tag)}</span>`).join('') || '<span class="muted-label">尚未加上標籤</span>'}</div><dl class="detail-grid"><div class="detail-data"><dt>影音類型</dt><dd>${escapeHtml(displayMediaType(item))}</dd></div><div class="detail-data"><dt>評分</dt><dd class="card-rating">${ratingStars(item.rating)}</dd></div><div class="detail-data"><dt>加入日期</dt><dd>${formatDate(item.createdAt)}</dd></div><div class="detail-data"><dt>最後更新</dt><dd>${formatDate(item.updatedAt)}</dd></div></dl><div class="detail-notes"><span class="detail-label">NOTES</span><p>${escapeHtml(item.notes || '還沒有備註。')}</p></div><div class="drawer-actions"><a class="primary-button" href="${escapeHtml(item.sourceUrl)}" target="_blank" rel="noreferrer" style="display:grid;place-items:center;text-decoration:none">開啟來源 ↗</a><button class="secondary-button" id="edit-item">編輯</button><button class="danger-button" id="delete-item">刪除收藏</button></div>`;
+  const sourceUrl = safeHttpUrl(item.sourceUrl);
+  const sourceLink = sourceUrl
+    ? `<a class="primary-button" href="${escapeHtml(sourceUrl)}" target="_blank" rel="noreferrer" style="display:grid;place-items:center;text-decoration:none">開啟來源 ↗</a>`
+    : '<span class="primary-button" aria-disabled="true" style="display:grid;place-items:center">來源無效</span>';
+  const adminActions = isAdminAuthenticated()
+    ? '<button class="secondary-button" id="edit-item">編輯</button><button class="danger-button" id="delete-item">刪除收藏</button>'
+    : '';
+  return `<div class="detail-image">${image}</div><div class="detail-topline"><span class="card-category">${escapeHtml(displayMediaType(item))}</span><span class="status-pill ${statusClass(item.status)}">${escapeHtml(item.status)}</span></div><div class="detail-title">${escapeHtml(item.title)}</div><div class="detail-tags">${tagsOf(item).map((tag) => `<span class="card-tag">#${escapeHtml(tag)}</span>`).join('') || '<span class="muted-label">尚未加上標籤</span>'}</div><dl class="detail-grid"><div class="detail-data"><dt>影音類型</dt><dd>${escapeHtml(displayMediaType(item))}</dd></div><div class="detail-data"><dt>評分</dt><dd class="card-rating">${ratingStars(item.rating)}</dd></div><div class="detail-data"><dt>加入日期</dt><dd>${formatDate(item.createdAt)}</dd></div><div class="detail-data"><dt>最後更新</dt><dd>${formatDate(item.updatedAt)}</dd></div></dl><div class="detail-notes"><span class="detail-label">NOTES</span><p>${escapeHtml(item.notes || '還沒有備註。')}</p></div><div class="drawer-actions">${sourceLink}${adminActions}</div>`;
 }
 
 function openForm(item = null) {
+  if (!requireAdmin()) return;
   state.selectedItem = item;
   state.editing = Boolean(item);
   $('#drawer-kicker').textContent = item ? 'EDIT ENTRY' : 'NEW ENTRY';
@@ -368,9 +399,10 @@ function renderRatingInput(value) { $$('.rating-star').forEach((star) => star.cl
 
 async function handleFormSubmit(event) {
   event.preventDefault();
+  if (!requireAdmin()) { closeDrawer(); return; }
   const title = $('#form-title').value.trim();
   const sourceUrl = $('#form-url').value.trim();
-  try { const parsedUrl = new URL(sourceUrl); if (!['http:', 'https:'].includes(parsedUrl.protocol)) throw new Error('protocol'); } catch { showToast('請輸入有效的 HTTP(S) 來源連結。', 'error'); return; }
+  if (!safeHttpUrl(sourceUrl)) { showToast('請輸入有效的 HTTP(S) 來源連結。', 'error'); return; }
   if (!title) { showToast('請填寫影音標題。', 'error'); return; }
   const now = new Date().toISOString();
   const item = { id: state.selectedItem?.id || `mv-${Date.now()}`, title, mediaType: $('#form-type').value, sourceUrl, thumbnailUrl: $('#form-thumbnail').value.trim(), category: state.selectedItem?.category || '', tags: state.selectedItem?.tags || '', status: state.selectedItem?.status || '待觀看', rating: Number(state.selectedItem?.rating) || 0, notes: $('#form-notes').value.trim(), createdAt: state.selectedItem?.createdAt || now, updatedAt: now };
@@ -385,6 +417,7 @@ async function handleFormSubmit(event) {
 }
 
 function confirmDelete(item) {
+  if (!requireAdmin()) return;
   if (!window.confirm(`確定要刪除「${item.title}」嗎？此動作無法復原。`)) return;
   dataSource.mutate('delete', item, item.id).then(async () => { await refreshData(false); closeDrawer(); showToast('收藏已刪除。', 'success'); }).catch((error) => showToast(error.message, 'error', { label: '重試', handler: () => confirmDelete(item) }));
 }
@@ -439,11 +472,19 @@ function requireAdmin() {
 }
 
 function isAdminAuthenticated() {
-  return state.auth.authenticated && state.auth.user?.email?.toLowerCase() === 'notemaker@gmail.com';
+  return state.auth.authenticated && Number(state.auth.expiresAt) > Date.now() && state.auth.user?.email?.toLowerCase() === 'notemaker@gmail.com';
+}
+
+function scheduleAuthExpiryCheck() {
+  window.clearTimeout(authExpiryTimer);
+  const expiresAt = Number(state.auth.expiresAt || 0);
+  if (!expiresAt) return;
+  authExpiryTimer = window.setTimeout(() => refreshAuth(), Math.max(0, expiresAt - Date.now() + 1000));
 }
 
 function updateWriteControls() {
   const canWrite = isAdminAuthenticated();
+  if (!canWrite && !$('#drawer-backdrop').hidden) closeDrawer();
   ['add-button', 'mobile-add-button'].forEach((id) => { const button = $(`#${id}`); if (button) button.hidden = !canWrite; });
   $('#library-actions').hidden = !canWrite;
   $('#desktop-navigation').hidden = !canWrite;
@@ -457,47 +498,80 @@ function updateWriteControls() {
   renderMediaTypeSelect();
   const user = $('#auth-user');
   const login = $('#google-login');
+  const loginFallback = $('#google-login-fallback');
   if (user) { user.hidden = !canWrite; user.querySelector('[data-auth-email]').textContent = state.auth.user?.email || ''; }
-  if (login) login.hidden = canWrite;
+  if (login) login.hidden = canWrite || state.auth.fallbackVisible;
+  if (loginFallback) loginFallback.hidden = canWrite || !state.auth.fallbackVisible;
+  renderList();
   if (!canWrite && !$('#settings-view').hidden) setView('library');
 }
 
 async function refreshAuth() {
   state.auth.sessionToken = sessionStorage.getItem('mediavault-admin-token') || '';
   try {
-    const response = await authFetch('/api/auth/me', { headers: { Accept: 'application/json' } });
+    const response = await authFetch('/api/auth/me', { headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(8000) });
     const payload = await readApiJson(response);
-    state.auth = { authenticated: Boolean(payload.authenticated), user: payload.user || null, sessionToken: state.auth.sessionToken };
-    if (!state.auth.authenticated) { sessionStorage.removeItem('mediavault-admin-token'); state.auth.sessionToken = ''; }
-  } catch { state.auth = { authenticated: false, user: null, sessionToken: '' }; sessionStorage.removeItem('mediavault-admin-token'); }
+    state.auth = { authenticated: Boolean(payload.authenticated), user: payload.user || null, sessionToken: state.auth.sessionToken, expiresAt: Number(payload.expiresAt || 0), fallbackVisible: false };
+    if (!state.auth.authenticated) { sessionStorage.removeItem('mediavault-admin-token'); state.auth.sessionToken = ''; state.auth.expiresAt = 0; }
+  } catch { state.auth = { authenticated: false, user: null, sessionToken: '', expiresAt: 0, fallbackVisible: false }; sessionStorage.removeItem('mediavault-admin-token'); }
+  scheduleAuthExpiryCheck();
   updateWriteControls();
 }
 
 async function handleGoogleCredential(response) {
   try {
-    const result = await authFetch('/api/auth/google', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ credential: response.credential }) });
+    if (!response?.credential) throw new Error('Google 沒有回傳登入憑證，請再試一次。');
+    const result = await authFetch('/api/auth/google', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ credential: response.credential }), signal: AbortSignal.timeout(12000) });
     const payload = await readApiJson(result);
     if (!result.ok || !payload.ok) throw new Error(payload.error || 'Google 登入失敗。');
     sessionStorage.setItem('mediavault-admin-token', payload.sessionToken);
-    state.auth = { authenticated: true, user: payload.user, sessionToken: payload.sessionToken };
+    state.auth = { authenticated: true, user: payload.user, sessionToken: payload.sessionToken, expiresAt: Number(payload.expiresAt || 0), fallbackVisible: false };
+    scheduleAuthExpiryCheck();
     updateWriteControls();
     showToast('管理者登入成功，已開啟收藏管理功能。', 'success');
-  } catch (error) { showToast(error.message, 'error'); }
+  } catch (error) {
+    state.auth.fallbackVisible = true;
+    updateWriteControls();
+    showToast(error.message || '登入未完成，請使用 Google 登入按鈕再試一次。', 'error');
+  }
 }
 
 function initGoogleLogin() {
+  const login = $('#google-login');
+  if (!googleLoginClickBound && login) {
+    login.addEventListener('click', startGoogleLogin);
+    googleLoginClickBound = true;
+  }
   if (!window.google?.accounts?.id) { setTimeout(initGoogleLogin, 250); return; }
+  if (googleLoginInitialized) return;
   window.google.accounts.id.initialize({ client_id: GOOGLE_CLIENT_ID, callback: handleGoogleCredential, auto_select: false });
-  $('#google-login').addEventListener('click', () => {
-    if (!window.google?.accounts?.id) { showToast('Google 登入服務載入中，請稍後再試。', 'error'); return; }
-    window.google.accounts.id.prompt();
-  });
+  window.google.accounts.id.renderButton($('#google-login-fallback'), { type: 'standard', theme: 'filled_black', size: 'medium', shape: 'pill', text: 'signin', locale: 'zh-TW', width: 126 });
+  googleLoginInitialized = true;
+}
+
+function startGoogleLogin() {
+  if (!window.google?.accounts?.id) { showToast('Google 登入服務仍在載入，請稍後再按一次。', 'error'); return; }
+  state.auth.fallbackVisible = true;
+  updateWriteControls();
+  try {
+    window.google.accounts.id.prompt((notification) => {
+      if (notification?.isNotDisplayed?.() || notification?.isSkippedMoment?.()) {
+        state.auth.fallbackVisible = true;
+        updateWriteControls();
+      }
+    });
+  } catch {
+    state.auth.fallbackVisible = true;
+    updateWriteControls();
+    showToast('請按右上方的 Google 登入按鈕完成登入。', 'error');
+  }
 }
 
 async function logout() {
   try { await authFetch('/api/auth/logout', { method: 'POST' }); } catch { /* clear the local UI even if the server is temporarily unavailable */ }
+  window.clearTimeout(authExpiryTimer);
   sessionStorage.removeItem('mediavault-admin-token');
-  state.auth = { authenticated: false, user: null, sessionToken: '' };
+  state.auth = { authenticated: false, user: null, sessionToken: '', expiresAt: 0, fallbackVisible: false };
   updateWriteControls();
   showToast('已登出，現在可以瀏覽與播放影音。', 'success');
 }
